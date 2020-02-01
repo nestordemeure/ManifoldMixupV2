@@ -4,10 +4,10 @@ from fastai.callback import *
 from fastai.basic_train import Learner, LearnerCallback
 from manifold_mixup import *
 
-__all__ = ["ManifoldMixUpCallback", "manifold_mixup"]
+__all__ = ["ManifoldMixUpLoss", "ManifoldMixUpCallback", "manifold_mixup"]
 
 # TODO can we get rid of one of the two losses ?
-class ManifoldMixUpLoss(nn.Module):
+class ManifoldMixUpLoss(Module):
     "Adapt the loss function `criterion` to go with mixup."
     def __init__(self, criterion, reduction='mean'):
         super().__init__()

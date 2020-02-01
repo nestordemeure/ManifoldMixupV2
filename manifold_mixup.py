@@ -1,6 +1,5 @@
 "Implements [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf) training method"
 import warnings
-from functools import partial
 import torch.nn as nn
 from torch.utils.data import Dataset
 from numpy import random
@@ -13,16 +12,20 @@ class ManifoldMixupDataset(Dataset):
         self.dataset = dataset
 
     def __getitem__(self, index):
+        # TODO we could avoid using the same x2 twice with a shuffle
         new_idx = random.randint(0, len(self.dataset))
-        x_0, y_0 = self.dataset[index]
-        x_1, y_1 = self.dataset[new_idx]
-        return [x_0, x_1], [y_0, y_1]
+        x1, y1 = self.dataset[index]
+        x2, y2 = self.dataset[new_idx]
+        return [x1, x2], [y1, y2]
 
     def __len__(self):
         return len(self.dataset)
 
 class ManifoldMixupModule(nn.Module):
-    " Wrap a module with this class to indicate that you whish to use manifold mixup with this module only."
+    """
+    Wrap a module with this class to indicate that you whish to apply manifold mixup to the output of this module.
+    Note that this has no effect and is just used to locate modules of interest when wrapping a model with ManifoldMixupModel 
+    """
     def __init__(self, module):
         super(ManifoldMixupModule, self).__init__()
         self.module = module
@@ -56,43 +59,49 @@ class ManifoldMixupModel(nn.Module):
         self.hooked = None
         self._warning_raised = False
 
+    # input is a pair (x=(x0,x1))
+    # output is a classical ouput
+    # lam is computed on the fly
+    # outputs a pair output,lam
     def forward(self, x):
-        x_0, x_1 = x
+        x1, x2 = x
         self.lam = random.beta(self.alpha, self.alpha)
-        l_l = -1 if self.use_input_mixup else 0
-        k = random.randint(l_l, len(self.module_list))
-        if k == -1:
-            x_ = self.lam * x_0 + (1 - self.lam) * x_1
-            out = self.model(x_)
-        else:
-            self._update_hooked(False)
+        # selects a module to apply mixup
+        minimum_module_index = -1 if self.use_input_mixup else 0
+        k = random.randint(minimum_module_index, len(self.module_list))
+        if k == -1: # applies mixup to an input
+            mixed_x = self.lam * x1 + (1 - self.lam) * x2
+            output = self.model(mixed_x)
+        else: # applies mixup to an inner module
+            # applies model to x1 and extracts output of target module
+            self.hooked = False
             fetcher_hook = self.module_list[k].register_forward_hook(self.hook_fetch)
-            self.model(x_1)
+            self.model(x1)
             fetcher_hook.remove()
-            self._update_hooked(False)
+            # applies model to x2 and injects x1's output at the target module
+            self.hooked = False
             modifier_hook = self.module_list[k].register_forward_hook(self.hook_modify)
-            out = self.model(x_0)
+            output = self.model(x2)
             modifier_hook.remove()
-        self._update_hooked(None)
-        return out, self.lam
+        self.hooked = None
+        return output, self.lam
 
-    def hook_modify(self, module, input, output):
-        if not self.hooked:
-            output = (1 - self.lam) * self.intermediate_other + self.lam * output
-            self._update_hooked(True)
-
+    # TODO we might want to kill the run once we get the information we want in order to improve runtime
+    # TODO if we can suspend a run we could even switch outputs between x1 and x2 in order to avoid a x2 slowdown
     def hook_fetch(self, module, input, output):
+        "Intercepts the output of a module diring a run."
         if not self.hooked:
             self.intermediate_other = output
-            self._update_hooked(True)
-        else:
-            if not self._warning_raised:
-                warnings.warn('One of the mixup modules defined in the model is used more than once in forward pass. Mixup will happen only at first call.',
-                              Warning)
-                self._warning_raised = True
-
-    def _update_hooked(self, flag):
-        self.hooked = flag
+            self.hooked = True
+        elif not self._warning_raised:
+            warnings.warn('One of the manifold mixup modules defined in the model is used more than once in forward pass. Mixup will happen only at first call.', Warning)
+            self._warning_raised = True
+    
+    def hook_modify(self, module, input, output):
+        "Mix the output of this batch with the output of another batch previously saved."
+        if not self.hooked:
+            output = self.lam * self.intermediate_other + (1 - self.lam) * output
+            self.hooked = True
 
 class ManifoldMixupLoss(nn.Module):
     "Wrap a loss with this class in order to take mixup into account."
@@ -100,8 +109,8 @@ class ManifoldMixupLoss(nn.Module):
         super(ManifoldMixupLoss, self).__init__()
         self.originalLoss = originalLoss
 
-    def forward(self, outs, y):
-        out, lam = outs
-        y_0, y_1 = y
-        loss_0, loss_1 = self.originalLoss(out, y_0), self.originalLoss(out, y_1)
-        return lam * loss_0 + (1 - lam) * loss_1
+    def forward(self, outputs, targets):
+        output, lam = outputs
+        target1, target2 = targets
+        loss1, loss2 = self.originalLoss(output, target1), self.originalLoss(output, target2)
+        return lam * loss1 + (1 - lam) * loss2
