@@ -1,5 +1,6 @@
 "Implements [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf) training method"
 import warnings
+from functools import partial
 import torch.nn as nn
 from torch.utils.data import Dataset
 from numpy import random
@@ -104,4 +105,3 @@ class ManifoldMixupLoss(nn.Module):
         y_0, y_1 = y
         loss_0, loss_1 = self.originalLoss(out, y_0), self.originalLoss(out, y_1)
         return lam * loss_0 + (1 - lam) * loss_1
-        
