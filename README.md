@@ -4,12 +4,28 @@ Unofficial implementation of [ManifoldMixup](http://proceedings.mlr.press/v97/ve
 
 ## Usage
 
+Just call the `.manifold_mixup()` method of a learner (as you would with classical [mixup](https://docs.fast.ai/callbacks.mixup.html)):
+
+```python
+path = untar_data(URLs.MNIST_SAMPLE)
+data = ImageDataBunch.from_folder(path)
+model = simple_cnn((3,16,16,2))
+learner = Learner(data, model, metrics=[accuracy]).manifold_mixup()
+learner.fit(8)
+```
+
+The `manifold_mixup` method takes tree parameters :
+- `alpha=0.4` parameter of the beta law used for sampling the interpolation weight
+- `mixup_all=True` do you want to apply mixup to any random module or only modules wrapped with a `ManifoldMixupModule`
+- `use_input_mixup=True` do you want to apply mixup to the inputs
+
+By default, any module can be used for mixup but, if you want to restrict it to a subset of modules, you can wrap them with a `ManifoldMixupModule`. 
 
 ## TODO
 
 This repository will be updated to [fast.ai V2](http://dev.fast.ai/) once it gets out of alpha stage.
 In the meantime, I might create a dedicated branch.
 
-Add a demonstration notebook.
+Add a demonstration notebook (see [mixup](https://docs.fast.ai/callbacks.mixup.html)).
 
-Test ways to improve runtime by recycling information.
+Test ways to improve runtime by interleaving the batch run and the shuffled batch run.
