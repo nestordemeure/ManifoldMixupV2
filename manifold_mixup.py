@@ -15,7 +15,7 @@ def adapt_dim(t, t_target):
     This function is useful to multiply tensors of arbitrary size
     implementation inspired by: https://github.com/pytorch/pytorch/issues/9410#issuecomment-552786888
     """
-    # this might might be implementable with view()
+    # this might be implementable with view()
     nb_dim = len(t_target.shape)
     t = t[(..., ) + (None, ) * (nb_dim-1)]
     return t
@@ -35,17 +35,6 @@ class ManifoldMixupModule(Module):
     def forward(self, x, *args, **kwargs):
         return self.module(x, *args, **kwargs)
 
-def mixable_module(m):
-    if isinstance(m, ManifoldMixupModule): return True
-    if isinstance(m, nn.Linear): return True
-    if isinstance(m, nn.Conv1d): return True
-    if isinstance(m, nn.Conv2d): return True
-    if isinstance(m, nn.Conv3d): return True
-    if isinstance(m, nn.ConvTranspose1d): return True
-    if isinstance(m, nn.ConvTranspose2d): return True
-    if isinstance(m, nn.ConvTranspose3d): return True
-    return False
-
 class ManifoldMixupModel(Module):
     "Wrap a model with this class in order to apply manifold mixup."
     def __init__(self, model, mixup_all=True, use_input_mixup=True):
@@ -61,10 +50,7 @@ class ManifoldMixupModel(Module):
         if not mixup_all:
             self.module_list = list(filter(lambda module: isinstance(module, ManifoldMixupModule), list(self.model.modules())))
         else:
-            #self.module_list = list(self.model.modules())
-            self.module_list = list(filter(mixable_module, list(self.model.modules())))
-            for (i,m) in enumerate(self.module_list):
-                print(i, ": ", m)
+            self.module_list = list(self.model.modules())
         if len(self.module_list) == 0:
             raise ValueError('No eligible layer found for mixup. Try passing mixup_all=True or wrap one of your modules with a ManifoldMixupModule')
         print(f'{len(self.module_list)} modules eligible for mixup')
@@ -82,7 +68,7 @@ class ManifoldMixupModel(Module):
         k = np.random.randint(minimum_module_index, len(self.module_list))
         if k == -1: # applies mixup to an input
             self.lam = adapt_dim(self.lam, x1)
-            mixed_x = self.lam * x2 + (1 - self.lam) * x1
+            mixed_x = (1 - self.lam) * x1 + self.lam * x2
             output = self.model(mixed_x, **kwargs)
         else: # applies mixup to an inner module
             # applies model to x1 and extracts output of target module
@@ -115,7 +101,7 @@ class ManifoldMixupModel(Module):
     def hook_modify(self, module, input, output):
         "Mix the output of this batch with the output of another batch previously saved."
         if not self.hooked:
-            output = output * self.lam + self.intermediate_other * (1 - self.lam)
+            output = self.intermediate_other * (1 - self.lam) + output * self.lam
             self.hooked = True
 
 class ManifoldMixupLoss(Module):
@@ -140,7 +126,7 @@ class ManifoldMixupLoss(Module):
             loss1 = self.criterion(output,target1)
             loss2 = self.criterion(output,target2)
             lam = adapt_dim(lam, loss1)
-            finalLoss = loss2 * lam + loss1 * (1-lam)
+            finalLoss = loss1 * (1-lam) + loss2 * lam
         # applies a reduction to the loss if needed
         if self.reduction == 'mean':  return finalLoss.mean()
         if self.reduction == 'sum':   return finalLoss.sum()
@@ -189,7 +175,6 @@ class ManifoldMixupCallback(LearnerCallback):
         shuffle = torch.randperm(last_target.size(0)).to(last_input.device)
         new_input = [last_input, last_input[shuffle], lambd]
         new_target = [last_target, last_target[shuffle], lambd]
-        #new_target = torch.cat([last_target[:,None], last_target[shuffle][:,None], lambd[:,None]], 1)
         return {'last_input': new_input, 'last_target': new_target}
 
     def on_train_end(self, **kwargs):
