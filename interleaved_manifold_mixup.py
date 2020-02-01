@@ -4,7 +4,7 @@ from fastai.torch_core import *
 from fastai.callback import *
 from fastai.basic_train import Learner, LearnerCallback
 
-__all__ = ["ManifoldMixupModule", "ManifoldMixupModel", "ManifoldMixupLoss", "ManifoldMixupCallback", "manifold_mixup"]
+__all__ = ["ManifoldMixupModule", "ManifoldMixupModel", "ManifoldMixupLoss", "ManifoldMixupCallback", "interleaved_manifold_mixup"]
 
 #--------------------------------------------------------------------------------------------------
 # Various functions
@@ -16,8 +16,9 @@ def adapt_dim(t, t_target):
     implementation inspired by: https://github.com/pytorch/pytorch/issues/9410#issuecomment-552786888
     """
     # this might be implementable with view()
-    nb_dim = len(t_target.shape)
-    t = t[(..., ) + (None, ) * (nb_dim-1)]
+    nb_current_dim = t.dim()
+    nb_target_dim = t_target.dim()
+    t = t[(..., )*nb_current_dim + (None, ) * (nb_target_dim-nb_current_dim)]
     return t
 
 #--------------------------------------------------------------------------------------------------
@@ -55,9 +56,10 @@ class ManifoldMixupModel(Module):
             raise ValueError('No eligible layer found for mixup. Try passing mixup_all=True or wrap one of your modules with a ManifoldMixupModule')
         print(f'{len(self.module_list)} modules eligible for mixup')
         self.lam = None
-        self.intermediate_other = None
-        self.hooked = None
-        self._warning_raised = False
+        self.intermediate_output = None
+        self.input = None
+        self.kwargs = None
+        self.output = None
 
     def forward(self, *x, **kwargs):
         "Takes a triplet (x1,x2,lam) and returns an output."
@@ -71,37 +73,32 @@ class ManifoldMixupModel(Module):
             mixed_x = (1 - self.lam) * x1 + self.lam * x2
             output = self.model(mixed_x, **kwargs)
         else: # applies mixup to an inner module
-            # applies model to x1 and extracts output of target module
-            self.hooked = False
-            fetcher_hook = self.module_list[k].register_forward_hook(self.hook_fetch)
-            self.model(x1, **kwargs)
-            fetcher_hook.remove()
-            # applies model to x2 and injects x1's output at the target module
-            self.hooked = False
-            modifier_hook = self.module_list[k].register_forward_hook(self.hook_modify)
-            output = self.model(x2, **kwargs)
-            modifier_hook.remove()
-            self.hooked = None
+            self.input = x2
+            self.kwargs = kwargs
+            mixup_hook = self.module_list[k].register_forward_hook(self.hook_mixup)
+            output1 = self.model(x1, **kwargs)
+            mixup_hook.remove()
+            output2 = self.output
+            output = torch.cat((output1, output2), dim=0)
         return output
 
-    # TODO if we can suspend a run we could even switch outputs between x1 and x2 in order to avoid a x2 slowdown
-    # TODO the easiest way might be to interleave computations: when fetch is called it calles the model with batch2 and save the needed informations
-    def hook_fetch(self, module, input, output):
-        "Intercepts the output of a module during a run."
-        if not self.hooked:
+    def hook_mixup(self, module, input, output):
+        "stores intermediate result, restart model with different input, "
+        if self.intermediate_output is None:
+            # stores intermediate output
+            self.intermediate_output = output
+            # restarts model with different input (using stored output in the mixup and producing a new intermediate output)
+            self.output = self.model(self.input, **self.kwargs)
+            # performs mixup with new intermediate output
+            new_output = output * (1 - self.lam) + self.intermediate_output * self.lam
+            self.intermediate_output = None
+        else:
+            # performs mixup with intermediate output computed with a different input
             self.lam = adapt_dim(self.lam, output) # resize lam
-            self.intermediate_other = output
-            self.hooked = True
-        elif not self._warning_raised:
-            warnings.warn('One of the manifold mixup modules defined in the model is used more than once in forward pass. Mixup will happen only at first call.', Warning)
-            self._warning_raised = True
-
-    def hook_modify(self, module, input, output):
-        "Mix the output of this batch with the output of another batch previously saved."
-        if not self.hooked:
-            output = self.intermediate_other * (1 - self.lam) + output * self.lam
-            self.hooked = True
-            return output
+            new_output = output * (1 - self.lam) + self.intermediate_output * self.lam
+            # stores ouput
+            self.intermediate_output = output
+        return new_output
 
 class ManifoldMixupLoss(Module):
     "Adapts the loss function `criterion` to be used with manifold mixup."
@@ -122,6 +119,13 @@ class ManifoldMixupLoss(Module):
             finalLoss = self.criterion(output, target[0])
         else:
             (target1, target2, lam) = target
+            if output.size(0) != target1.size(0):
+                # if we have not done the mixup step on the input, the output is twice as long
+                extendedTarget1 = torch.cat((target1, target2), dim=0)
+                extendedTarget2 = torch.cat((target2, target1), dim=0)
+                target1 = extendedTarget1
+                target2 = extendedTarget2
+                lam = torch.cat((lam,lam), dim=0)
             loss1 = self.criterion(output,target1)
             loss2 = self.criterion(output,target2)
             lam = adapt_dim(lam, loss1)
@@ -181,10 +185,10 @@ class ManifoldMixupCallback(LearnerCallback):
         self.learn.model = self.learn.model.model
         self.learn.loss_func = self.learn.loss_func.get_old()
 
-def manifold_mixup(learn:Learner, alpha:float=0.4, mixup_all:bool=True, use_input_mixup:bool=True) -> Learner:
+def interleaved_manifold_mixup(learn:Learner, alpha:float=0.4, mixup_all:bool=True, use_input_mixup:bool=True) -> Learner:
     "Adds manifold-mixup http://proceedings.mlr.press/v97/verma19a/verma19a.pdf to `learn`."
     learn.callback_fns.append(partial(ManifoldMixupCallback, alpha=alpha, mixup_all=mixup_all, use_input_mixup=use_input_mixup))
     return learn
 
 # adds manifold_mixup to Learner's methods
-Learner.manifold_mixup = manifold_mixup
+Learner.interleaved_manifold_mixup = interleaved_manifold_mixup

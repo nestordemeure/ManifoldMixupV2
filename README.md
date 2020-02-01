@@ -24,5 +24,4 @@ This repository will be updated to [fast.ai V2](http://dev.fast.ai/) once it get
 In the meantime, I might create a dedicated branch.
 
 Use only callbacks and no module wrapping for the model to insure compatibility with fastai (currently the lr finder does not work).
-
-Test ways to improve runtime and, in particular, interleaving the batch run and the shuffled batch run (increase memory usage).
+This seem to be particularly suited for the interleaved variation.
