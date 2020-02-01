@@ -5,3 +5,7 @@ Unofficial implementation of [ManifoldMixup](http://proceedings.mlr.press/v97/ve
 ## Usage
 
 
+## TODO
+
+This repository will be updated to [fast.ai V2](http://dev.fast.ai/) once it gets out of alpha stage.
+In the meantime, I might create a dedicated branch.

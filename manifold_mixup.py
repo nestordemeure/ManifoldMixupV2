@@ -1,14 +1,11 @@
+"Implements [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf) training method"
 import warnings
-import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
-from torchvision.datasets import MNIST
-from torchvision.transforms import ToTensor
+from torch.utils.data import Dataset
 import numpy as np
-import copy
 
 class ManifoldMixupDataset(Dataset):
-
+    "Wrap a dataset with this class in order to produce mixup compatible input*output pairs."
     def __init__(self, dataset):
         self.dataset = dataset
 
@@ -21,10 +18,25 @@ class ManifoldMixupDataset(Dataset):
     def __len__(self):
         return len(self.dataset)
 
+class MixupModule(nn.Module):
+    " Wrap a module with this class to indicate that you whish to use manifold mixup with this module only."
+    def __init__(self, module):
+        super(MixupModule, self).__init__()
+        self.module = module
+    def forward(self, x, *args, **kwargs):
+        return self.module(x, *args, **kwargs)
 
 class ManifoldMixupModel(nn.Module):
-    
-    def __init__(self, model, alpha=1.0, interpolation_adv=False, mixup_all=False, use_input_mixup=True):
+    "Wrap a model with this class in order to apply manifold mixup."
+    def __init__(self, model, alpha=0.4, mixup_all=True, use_input_mixup=True):
+        """
+        `alpha` is the parameter for the beta law.
+
+        If `mixup_all` is set to true, mixup will be applied to any random module.
+        Oherwise it will only be applied to a random MixupModule.
+
+        If `use_input_mixup` is set to True, mixup will also be applied to the inputs.
+        """
         super(ManifoldMixupModel, self).__init__()
         self.use_input_mixup = use_input_mixup
         self.model = model
@@ -33,16 +45,15 @@ class ManifoldMixupModel(nn.Module):
         else:
             self.module_list = list(self.model.modules())
         if len(self.module_list) == 0:
-            raise ValueError('No eligible layer found for mixup. Try passing mixup_all=True')
+            raise ValueError('No eligible layer found for mixup. Try passing mixup_all=True or wrap one of your modules with a MixupModule')
         print(f'{len(self.module_list)} modules eligible for mixup')
         self.alpha = alpha
         self.intermediate_other = None
         self.lam = None
-        self.interpolation_adv = interpolation_adv
-        self._hooked = None
+        self.hooked = None
         self._warning_raised = False
 
-    def forward(self, x, switch_adv=False):
+    def forward(self, x):
         x_0, x_1 = x
         self.lam = np.random.beta(self.alpha, self.alpha)
         l_l = -1 if self.use_input_mixup else 0
@@ -60,8 +71,6 @@ class ManifoldMixupModel(nn.Module):
             out = self.model(x_0)
             modifier_hook.remove()
         self._update_hooked(None)
-        if self.interpolation_adv and not switch_adv:
-            return out, x, self, self.lam
         return out, self.lam
 
     def hook_modify(self, module, input, output):
@@ -76,28 +85,22 @@ class ManifoldMixupModel(nn.Module):
         else:
             if not self._warning_raised:
                 warnings.warn('One of the mixup modules defined in the model is used more than once in forward pass. Mixup will happen only at first call.',
-                Warning)
+                              Warning)
                 self._warning_raised = True
-    
+
     def _update_hooked(self, flag):
         self.hooked = flag
 
 
 class ManifoldMixupLoss(nn.Module):
-
-    def __init__(self, criterion):
+    "Wrap a loss with this class in order to take mixup into account."
+    def __init__(self, originalLoss):
         super(ManifoldMixupLoss, self).__init__()
-        self.criterion = criterion
+        self.originalLoss = originalLoss
 
     def forward(self, outs, y):
         out, lam = outs
         y_0, y_1 = y
-        loss_0, loss_1 = self.criterion(out, y_0), self.criterion(out, y_1)
+        loss_0, loss_1 = self.originalLoss(out, y_0), self.originalLoss(out, y_1)
         return lam * loss_0 + (1 - lam) * loss_1
         
-class MixupModule(nn.Module):
-    def __init__(self, module):
-        super(MixupModule, self).__init__()
-        self.module = module
-    def forward(self, x, *args, **kwargs):
-        return self.module(x, *args, **kwargs)
