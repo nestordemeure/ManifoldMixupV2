@@ -2,7 +2,9 @@
 import warnings
 import torch.nn as nn
 from torch.utils.data import Dataset
-import numpy as np
+from numpy import random
+
+__all__ = ["ManifoldMixupDataset", "ManifoldMixupModule", "ManifoldMixupModel", "ManifoldMixupLoss"]
 
 class ManifoldMixupDataset(Dataset):
     "Wrap a dataset with this class in order to produce mixup compatible input*output pairs."
@@ -10,7 +12,7 @@ class ManifoldMixupDataset(Dataset):
         self.dataset = dataset
 
     def __getitem__(self, index):
-        new_idx = np.random.randint(0, len(self.dataset))
+        new_idx = random.randint(0, len(self.dataset))
         x_0, y_0 = self.dataset[index]
         x_1, y_1 = self.dataset[new_idx]
         return [x_0, x_1], [y_0, y_1]
@@ -18,10 +20,10 @@ class ManifoldMixupDataset(Dataset):
     def __len__(self):
         return len(self.dataset)
 
-class MixupModule(nn.Module):
+class ManifoldMixupModule(nn.Module):
     " Wrap a module with this class to indicate that you whish to use manifold mixup with this module only."
     def __init__(self, module):
-        super(MixupModule, self).__init__()
+        super(ManifoldMixupModule, self).__init__()
         self.module = module
     def forward(self, x, *args, **kwargs):
         return self.module(x, *args, **kwargs)
@@ -33,7 +35,7 @@ class ManifoldMixupModel(nn.Module):
         `alpha` is the parameter for the beta law.
 
         If `mixup_all` is set to true, mixup will be applied to any random module.
-        Oherwise it will only be applied to a random MixupModule.
+        Oherwise it will only be applied to a random ManifoldMixupModule.
 
         If `use_input_mixup` is set to True, mixup will also be applied to the inputs.
         """
@@ -41,11 +43,11 @@ class ManifoldMixupModel(nn.Module):
         self.use_input_mixup = use_input_mixup
         self.model = model
         if not mixup_all:
-            self.module_list = list(filter(lambda module: isinstance(module, MixupModule), list(self.model.modules())))
+            self.module_list = list(filter(lambda module: isinstance(module, ManifoldMixupModule), list(self.model.modules())))
         else:
             self.module_list = list(self.model.modules())
         if len(self.module_list) == 0:
-            raise ValueError('No eligible layer found for mixup. Try passing mixup_all=True or wrap one of your modules with a MixupModule')
+            raise ValueError('No eligible layer found for mixup. Try passing mixup_all=True or wrap one of your modules with a ManifoldMixupModule')
         print(f'{len(self.module_list)} modules eligible for mixup')
         self.alpha = alpha
         self.intermediate_other = None
@@ -55,9 +57,9 @@ class ManifoldMixupModel(nn.Module):
 
     def forward(self, x):
         x_0, x_1 = x
-        self.lam = np.random.beta(self.alpha, self.alpha)
+        self.lam = random.beta(self.alpha, self.alpha)
         l_l = -1 if self.use_input_mixup else 0
-        k = np.random.randint(l_l, len(self.module_list))
+        k = random.randint(l_l, len(self.module_list))
         if k == -1:
             x_ = self.lam * x_0 + (1 - self.lam) * x_1
             out = self.model(x_)
@@ -90,7 +92,6 @@ class ManifoldMixupModel(nn.Module):
 
     def _update_hooked(self, flag):
         self.hooked = flag
-
 
 class ManifoldMixupLoss(nn.Module):
     "Wrap a loss with this class in order to take mixup into account."
