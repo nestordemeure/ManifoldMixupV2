@@ -13,7 +13,7 @@ learn.fit(8)
 learn.recorder.plot_losses()
 
 # no mixup
-model = simple_cnn((3,16,16,2))
+model = models.resnet18()# simple_cnn((3,16,16,2))
 learn = Learner(data, model, metrics=[accuracy])
 learn.fit(8)
 learn.recorder.plot_losses()
