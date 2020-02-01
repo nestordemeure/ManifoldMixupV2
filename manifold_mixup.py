@@ -6,6 +6,19 @@ from fastai.basic_train import Learner, LearnerCallback
 __all__ = ["ManifoldMixupModule", "ManifoldMixupModel", "ManifoldMixupLoss", "ManifoldMixupCallback", "manifold_mixup"]
 
 #--------------------------------------------------------------------------------------------------
+# Various functions
+
+def adapt_dim(t, t_target):
+    """
+    Takes a 1D tensor and adds trailing dimensions until it fits the dimension of the target tensor
+    This function is useful to multiply tensors of arbitrary size
+    implementation inspired by: https://github.com/pytorch/pytorch/issues/9410#issuecomment-552786888
+    """
+    nb_dim = len(t_target.shape)
+    t = t[(..., ) + (None, ) * (nb_dim-1)]
+    return t
+
+#--------------------------------------------------------------------------------------------------
 # Manifold mixup
 
 class ManifoldMixupModule(Module):
@@ -36,6 +49,7 @@ class ManifoldMixupModel(Module):
             self.module_list = list(filter(lambda module: isinstance(module, ManifoldMixupModule), list(self.model.modules())))
         else:
             self.module_list = list(self.model.modules())
+            print(self.module_list)
         if len(self.module_list) == 0:
             raise ValueError('No eligible layer found for mixup. Try passing mixup_all=True or wrap one of your modules with a ManifoldMixupModule')
         print(f'{len(self.module_list)} modules eligible for mixup')
@@ -44,26 +58,27 @@ class ManifoldMixupModel(Module):
         self.hooked = None
         self._warning_raised = False
 
-    def forward(self, x):
+    def forward(self, *x, **kwargs):
         "Takes a triplet (x1,x2,lam) and returns an output."
-        x1, x2, lam = x
-        self.lam = lam
+        if len(x) != 3: return self.model(x[0], **kwargs)
+        x1, x2, self.lam = x
         # selects a module to apply mixup
         minimum_module_index = -1 if self.use_input_mixup else 0
-        k = random.randint(minimum_module_index, len(self.module_list))
+        k = np.random.randint(minimum_module_index, len(self.module_list))
         if k == -1: # applies mixup to an input
+            self.lam = adapt_dim(self.lam, x1)
             mixed_x = self.lam * x1 + (1 - self.lam) * x2
-            output = self.model(mixed_x)
+            output = self.model(mixed_x, **kwargs)
         else: # applies mixup to an inner module
             # applies model to x1 and extracts output of target module
             self.hooked = False
             fetcher_hook = self.module_list[k].register_forward_hook(self.hook_fetch)
-            self.model(x1)
+            self.model(x1, **kwargs)
             fetcher_hook.remove()
             # applies model to x2 and injects x1's output at the target module
             self.hooked = False
             modifier_hook = self.module_list[k].register_forward_hook(self.hook_modify)
-            output = self.model(x2)
+            output = self.model(x2, **kwargs)
             modifier_hook.remove()
             self.hooked = None
         return output
@@ -75,6 +90,7 @@ class ManifoldMixupModel(Module):
     def hook_fetch(self, module, input, output):
         "Intercepts the output of a module diring a run."
         if not self.hooked:
+            self.lam = adapt_dim(self.lam, output) # resize lam
             self.intermediate_other = output
             self.hooked = True
         elif not self._warning_raised:
@@ -84,7 +100,7 @@ class ManifoldMixupModel(Module):
     def hook_modify(self, module, input, output):
         "Mix the output of this batch with the output of another batch previously saved."
         if not self.hooked:
-            output = self.lam * self.intermediate_other + (1 - self.lam) * output
+            output = self.intermediate_other * self.lam + output * (1 - self.lam)
             self.hooked = True
 
 class ManifoldMixupLoss(Module):
@@ -100,12 +116,16 @@ class ManifoldMixupLoss(Module):
             self.old_crit = criterion
         self.reduction = reduction
 
-    def forward(self, output, target):
-        # uses a mixup loss
-        (target1, target2, lam) = target
-        loss1 = self.criterion(output,target1)
-        loss2 = self.criterion(output,target2)
-        finalLoss = loss1 * lam + loss2 * (1-lam)
+    def forward(self, output, *target):
+        # computes loss
+        if len(target) != 3:
+            finalLoss = self.criterion(output, target[0])
+        else:
+            (target1, target2, lam) = target
+            loss1 = self.criterion(output,target1)
+            loss2 = self.criterion(output,target2)
+            lam = adapt_dim(lam, loss1)
+            finalLoss = loss1 * lam + loss2 * (1-lam)
         # applies a reduction to the loss if needed
         if self.reduction == 'mean':  return finalLoss.mean()
         if self.reduction == 'sum':   return finalLoss.sum()
@@ -149,17 +169,18 @@ class ManifoldMixupCallback(LearnerCallback):
         # creates tensor filled with the random ponderation drawed from a beta distribution of parameter alpha
         lambd = np.random.beta(self.alpha, self.alpha, last_target.size(0))
         lambd = np.concatenate([lambd[:,None], 1-lambd[:,None]], 1).max(1)
-        lambd = last_input.new(lambd)
+        lambd = torch.from_numpy(lambd).float().to(last_input.device)
         # builds inputs and ouputs of the form: (batch, batch[shuffle], lambd)
         shuffle = torch.randperm(last_target.size(0)).to(last_input.device)
-        new_input = (last_input, last_input[shuffle], lambd) #[last_input, last_input[shuffle], lambd]
-        new_target = (last_target, last_target[shuffle], lambd) #torch.cat([last_target[:,None].float(), last_target[shuffle][:,None].float(), lambd[:,None].float()], 1)
+        new_input = [last_input, last_input[shuffle], lambd]
+        new_target = [last_target, last_target[shuffle], lambd]
+        #new_target = torch.cat([last_target[:,None], last_target[shuffle][:,None], lambd[:,None]], 1)
         return {'last_input': new_input, 'last_target': new_target}
 
     def on_train_end(self, **kwargs):
         "Restores original loss function and model"
-        self.learn.loss_func = self.learn.loss_func.get_old()
         self.learn.model = self.learn.model.model
+        self.learn.loss_func = self.learn.loss_func.get_old()
 
 def manifold_mixup(learn:Learner, alpha:float=0.4, mixup_all:bool=True, use_input_mixup:bool=True) -> Learner:
     "Adds manifold-mixup http://proceedings.mlr.press/v97/verma19a/verma19a.pdf to `learn`."

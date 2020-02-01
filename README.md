@@ -23,8 +23,6 @@ By default, any module can be used for mixup but, if you want to restrict it to 
 This repository will be updated to [fast.ai V2](http://dev.fast.ai/) once it gets out of alpha stage.
 In the meantime, I might create a dedicated branch.
 
-Add a demonstration notebook (see [mixup](https://docs.fast.ai/callbacks.mixup.html)).
-
 Test ways to improve runtime :
 - interleaving the batch run and the shuffled batch run (increase memory usage)
 - using the output of a batch for the next batch (might fail due to gradients being zeroed out between batches)
