@@ -1,3 +1,4 @@
+import warnings
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
@@ -5,7 +6,6 @@ from torchvision.datasets import MNIST
 from torchvision.transforms import ToTensor
 import numpy as np
 import copy
-import warnings
 
 class ManifoldMixupDataset(Dataset):
 
