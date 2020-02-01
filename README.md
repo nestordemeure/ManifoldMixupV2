@@ -7,9 +7,6 @@ Unofficial implementation of [ManifoldMixup](http://proceedings.mlr.press/v97/ve
 Just call the `.manifold_mixup()` method of a learner (as you would with classical [mixup](https://docs.fast.ai/callbacks.mixup.html)):
 
 ```python
-path = untar_data(URLs.MNIST_SAMPLE)
-data = ImageDataBunch.from_folder(path)
-model = simple_cnn((3,16,16,2))
 learner = Learner(data, model, metrics=[accuracy]).manifold_mixup()
 learner.fit(8)
 ```
@@ -28,4 +25,6 @@ In the meantime, I might create a dedicated branch.
 
 Add a demonstration notebook (see [mixup](https://docs.fast.ai/callbacks.mixup.html)).
 
-Test ways to improve runtime by interleaving the batch run and the shuffled batch run.
+Test ways to improve runtime :
+- interleaving the batch run and the shuffled batch run (increase memory usage)
+- using the output of a batch for the next batch (might fail due to gradients being zeroed out between batches)
