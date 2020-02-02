@@ -4,7 +4,7 @@ from fastai.callback import *
 from fastai.basic_train import Learner, LearnerCallback
 from fastai.text import models
 
-__all__ = ["ManifoldMixupModule", "ManifoldMixupLoss", "ManifoldMixupCallback", "manifold_mixup", "non_mixable_module_types"]
+__all__ = ["ManifoldMixupModule", "ManifoldMixupLoss", "ManifoldMixupCallback", "non_mixable_module_types", "manifold_mixup", "output_mixup"]
 
 def _adapt_dim(t, t_target):
     """
@@ -40,7 +40,7 @@ class ManifoldMixupModule(Module):
     def forward(self, x, *args, **kwargs):
         return self.module(x, *args, **kwargs)
 
-def _get_module_list(model, use_only_mixup_modules):
+def _get_mixup_module_list(model, use_only_mixup_modules):
     "returns all the modules that can be used for mixup"
     if use_only_mixup_modules:
         module_list = list(filter(lambda module: isinstance(module, ManifoldMixupModule), list(model.modules())))
@@ -53,7 +53,8 @@ def _get_module_list(model, use_only_mixup_modules):
 
 class ManifoldMixupCallback(LearnerCallback):
     "Callback that creates the mixed-up input and target."
-    def __init__(self, learn:Learner, alpha:float=0.4, use_symmetric_batch:bool=True, use_input_mixup:bool=True, use_only_mixup_modules:bool=False):
+    def __init__(self, learn:Learner, alpha:float=0.4, use_symmetric_batch:bool=True, use_input_mixup:bool=True,
+                 use_only_mixup_modules:bool=False, module_list:Collection=None):
         """
         `alpha` is the parameter for the beta law.
 
@@ -63,7 +64,10 @@ class ManifoldMixupCallback(LearnerCallback):
         If `use_input_mixup` is set to True, mixup might also be applied to the inputs.
 
         If `use_only_mixup_modules` is set to false, mixup will be applied to a random valid module.
-        Oherwise it will only be applied to a ManifoldMixupModule.
+        Oherwise it will only be applied to the modules wrapped with ManifoldMixupModule.
+
+        You can also hardcode the modules you want to use by passing them with `module_list`.
+        Doing so will bypass `use_only_mixup_modules` but not `use_input_mixup`.
         """
         super().__init__(learn)
         # parameters describing the mixup
@@ -72,7 +76,7 @@ class ManifoldMixupCallback(LearnerCallback):
         self.use_input_mixup = use_input_mixup
         self.use_symmetric_batch = use_symmetric_batch
         # modules on which we may apply mixup
-        self.module_list = _get_module_list(learn.model, use_only_mixup_modules)
+        self.module_list = _get_mixup_module_list(learn.model, use_only_mixup_modules) if module_list is None else module_list
         # temporary variables storing intermediate states
         self.lam = None
         self.input = None
@@ -184,10 +188,17 @@ class ManifoldMixupLoss(Module):
             setattr(self.criterion, 'reduction', self.old_red)
             return self.criterion
 
-def manifold_mixup(learn:Learner, alpha:float=0.4, use_symmetric_batch:bool=True, use_input_mixup:bool=True, use_only_mixup_modules:bool=False) -> Learner:
+def manifold_mixup(learn:Learner, alpha:float=0.4, use_symmetric_batch:bool=True, use_input_mixup:bool=True, use_only_mixup_modules:bool=False, module_list:Collection=None) -> Learner:
     "Adds manifold-mixup http://proceedings.mlr.press/v97/verma19a/verma19a.pdf to `learn`."
-    learn.callback_fns.append(partial(ManifoldMixupCallback, alpha=alpha, use_symmetric_batch=use_symmetric_batch, use_input_mixup=use_input_mixup, use_only_mixup_modules=use_only_mixup_modules))
+    learn.callback_fns.append(partial(ManifoldMixupCallback, alpha=alpha, use_symmetric_batch=use_symmetric_batch, use_input_mixup=use_input_mixup, use_only_mixup_modules=use_only_mixup_modules, module_list=module_list))
+    return learn
+
+def output_mixup(learn:Learner, alpha:float=0.4, use_symmetric_batch:bool=True, use_only_mixup_modules:bool=False) -> Learner:
+    "Adds a variant of manifold-mixup, that is only applied to the last viable module, to `learn`."
+    module_list = [_get_mixup_module_list(learn.model, use_only_mixup_modules)[-1]]
+    learn.callback_fns.append(partial(ManifoldMixupCallback, alpha=alpha, use_symmetric_batch=use_symmetric_batch, use_input_mixup=False, use_only_mixup_modules=use_only_mixup_modules, module_list=module_list))
     return learn
 
 # adds manifold_mixup to Learner's available methods
 Learner.manifold_mixup = manifold_mixup
+Learner.output_mixup = output_mixup

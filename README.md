@@ -1,10 +1,13 @@
 # Manifold Mixup
 
-Unofficial implementation of [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf) (Proceedings of ICML 19) for [fast.ai V1](https://docs.fast.ai/index.html) based on [Shivam Saboo](https://github.com/shivamsaboo17)'s [pytorch implementation](https://github.com/shivamsaboo17/ManifoldMixup) of manifold mixup, fastai's input mixup [implementation](https://docs.fast.ai/callbacks.mixup.html) plus some personnal improvements.
+Unofficial implementation of [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf) (Proceedings of ICML 19) for [fast.ai V1](https://docs.fast.ai/index.html) based on [Shivam Saboo](https://github.com/shivamsaboo17)'s [pytorch implementation](https://github.com/shivamsaboo17/ManifoldMixup) of manifold mixup, fastai's input mixup [implementation](https://docs.fast.ai/callbacks.mixup.html) plus some personnal improvements/variants.
+
+This package provides two additional methods to the fastai learner :
+- `.manifold_mixup()` which implements [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf)
+- `.output_mixup()` which implements a variant that does the mixup on the last viable layer only
 
 ## Usage
 
-To use manifold mixup, just call the `.manifold_mixup()` method of a learner (as you would with classical [mixup](https://docs.fast.ai/callbacks.mixup.html)).
 For a short demonstration, see the [Demo notebook](https://github.com/nestordemeure/ManifoldMixup/blob/master/Demo.ipynb).
 
 ```python
@@ -17,14 +20,18 @@ The `manifold_mixup` method takes four parameters :
 - `use_symmetric_batch=True` do you want to use both the outputs produced by `λ*x1 + (1-λ)*x2` and `λ*x2 + (1-λ)*x1` in order to avoid wasted computations
 - `use_input_mixup=True` do you want to apply mixup to the inputs
 - `use_only_mixup_modules=False` do you want to apply mixup to any valid module or only modules wrapped with a `ManifoldMixupModule`
+- `module_list=None` you can also bypass `use_only_mixup_modules` (but not `use_input_mixup`) by directly passing the list of modules you want to use.
 
-By default, most module can be used for mixup but, if you want to restrict it to a subset of modules in your model, you can wrap them with a `ManifoldMixupModule`. 
+The `output_mixup` takes only the `alpha`, `use_symmetric_batch` and `use_only_mixup_modules` parameters.
 
-You can add classes to `non_mixable_module_types` in order to define module classes that should not be used for mixup.
+## Mixup compatible modules
+
+By default, most modules can be used for mixup, notable exceptions include `Batchnorm` layers and most recurent layers. 
+You can add classes to the `non_mixable_module_types` list in order to define module classes that should not be used for mixup.
+
+If you want to target only a subset of the modules used in your model, you can either wrap them with a `ManifoldMixupModule` or pass them directly with the `module_list` parameter.
 
 ## Todo
 
 This repository will be updated to [fast.ai V2](http://dev.fast.ai/) once it gets out of alpha stage.
 In the meantime, I might create a dedicated branch.
-
-Add `output_mixup` which is only applied to the last legal layer.
