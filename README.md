@@ -8,7 +8,7 @@ This package provides two additional methods to the fastai learner :
 
 ## Usage
 
-For a short demonstration, see the [Demo notebook](https://github.com/nestordemeure/ManifoldMixup/blob/master/Demo.ipynb).
+To use manifold mixup, you just need to call the `manifold_mixup` method on your learner (for a short demonstration, see the [Demo notebook](https://github.com/nestordemeure/ManifoldMixup/blob/master/Demo.ipynb)):
 
 ```python
 learner = Learner(data, model).manifold_mixup()
@@ -17,19 +17,19 @@ learner.fit(8)
 
 The `manifold_mixup` method takes four parameters :
 - `alpha=0.4` parameter of the beta law used for sampling the interpolation weight
-- `use_symmetric_batch=True` do you want to use both the outputs produced by `λ*x1 + (1-λ)*x2` and `λ*x2 + (1-λ)*x1` in order to avoid wasted computations
+- `use_symmetric_batch=True` do you want to use both the outputs produced by `λ*x1 + (1-λ)*x2` and `λ*x2 + (1-λ)*x1` to avoid wasted computations
 - `use_input_mixup=True` do you want to apply mixup to the inputs
-- `use_only_mixup_modules=False` do you want to apply mixup to any valid module or only modules wrapped with a `ManifoldMixupModule`
+- `use_only_mixup_modules=False` do you want to restrict mixup to the modules wrapped with a `ManifoldMixupModule` instead of any valid module 
 - `module_list=None` you can also bypass `use_only_mixup_modules` (but not `use_input_mixup`) by directly passing the list of modules you want to use.
 
-The `output_mixup` takes only the `alpha`, `use_symmetric_batch` and `use_only_mixup_modules` parameters.
+The `output_mixup` variant takes only the `alpha`, `use_symmetric_batch` and `use_only_mixup_modules` parameters.
 
 ## Mixup compatible modules
 
-By default, most modules can be used for mixup, notable exceptions include `Batchnorm` layers and most recurent layers. 
+By default most modules can be used for mixup, notable exceptions include `Batchnorm` layers and most recurent layers. 
 You can add classes to the `non_mixable_module_types` list in order to define module classes that should not be used for mixup.
 
-If you want to target only a subset of the modules used in your model, you can either wrap them with a `ManifoldMixupModule` or pass them directly with the `module_list` parameter.
+If you want to target only a subset of the modules used in your model, you can either wrap them with a `ManifoldMixupModule` and set `use_only_mixup_modules` to `True` or pass them directly with the `module_list` parameter.
 
 ## Todo
 
