@@ -19,11 +19,11 @@ The `manifold_mixup` method takes four parameters :
 
 By default, any module can be used for mixup but, if you want to restrict it to a subset of modules, you can wrap them with a `ManifoldMixupModule`. 
 
+You can add classes to `non_mixable_module_types` in order to define module classes that should not be used for mixup.
+
 ## Todo
 
 This repository will be updated to [fast.ai V2](http://dev.fast.ai/) once it gets out of alpha stage.
 In the meantime, I might create a dedicated branch.
-
-We might want to make it so that certain module types are never selected for mixup (such as Sequential and Batch-norm).
 
 We should add a warning to signal when a module is mixed several times.

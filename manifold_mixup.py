@@ -1,10 +1,10 @@
 "Implements a fastai callback for the [Manifold Mixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf) training method."
-from fastai.layers import *
 from fastai.torch_core import *
 from fastai.callback import *
 from fastai.basic_train import Learner, LearnerCallback
+from fastai.text import models
 
-__all__ = ["ManifoldMixupModule", "ManifoldMixupLoss", "ManifoldMixupCallback", "manifold_mixup"]
+__all__ = ["ManifoldMixupModule", "ManifoldMixupLoss", "ManifoldMixupCallback", "manifold_mixup", "non_mixable_module_types"]
 
 def _adapt_dim(t, t_target):
     """
@@ -29,6 +29,16 @@ class ManifoldMixupModule(Module):
 
     def forward(self, x, *args, **kwargs):
         return self.module(x, *args, **kwargs)
+
+# types of modules that should probably be avoided when using mixup
+non_mixable_module_types = [nn.Sequential, nn.Dropout, nn.Dropout2d, nn.Dropout3d, nn.AlphaDropout,
+                            nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d, nn.SyncBatchNorm,
+                            nn.LSTM, nn.LSTMCell, nn.GRU, nn.GRUCell, models.AWD_LSTM,
+                            nn.RNN, nn.RNNBase, nn.RNNCell, nn.RNNCellBase]
+
+def _is_mixable(m):
+    "Checks wether the module m is an instance of a module that is allowed for mixup."
+    return not any(isinstance(m, non_mixable_class) for non_mixable_class in non_mixable_module_types)
 
 class ManifoldMixupCallback(LearnerCallback):
     "Callback that creates the mixed-up input and target."
@@ -61,7 +71,7 @@ class ManifoldMixupCallback(LearnerCallback):
         if not mixup_all:
             self.module_list = list(filter(lambda module: isinstance(module, ManifoldMixupModule), list(learn.model.modules())))
         else:
-            self.module_list = list(learn.model.modules())
+            self.module_list = list(filter(_is_mixable, list(learn.model.modules())))
         if len(self.module_list) == 0:
             raise ValueError('No eligible layer found for mixup. Try passing mixup_all=True or wrap one of your modules with a ManifoldMixupModule')
 
