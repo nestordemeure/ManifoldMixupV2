@@ -4,7 +4,8 @@ Unofficial implementation of [ManifoldMixup](http://proceedings.mlr.press/v97/ve
 
 ## Usage
 
-Just call the `.manifold_mixup()` method of a learner (as you would with classical [mixup](https://docs.fast.ai/callbacks.mixup.html)):
+To use manifold mixup, just call the `.manifold_mixup()` method of a learner (as you would with classical [mixup](https://docs.fast.ai/callbacks.mixup.html)).
+For a short demonstration, see the [Demo notebook](https://github.com/nestordemeure/ManifoldMixup/blob/master/Demo.ipynb).
 
 ```python
 learner = Learner(data, model).manifold_mixup()
