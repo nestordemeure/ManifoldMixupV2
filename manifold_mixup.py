@@ -117,14 +117,14 @@ class ManifoldMixupCallback(LearnerCallback):
             # restarts model with different input (using intermediate output 1 in the mixup and extracting intermediate output 2)
             self.output = self.learn.model(self.input)
             # performs mixup with intermediate output 2
-            lam = _adapt_dim(self.lam, output) # resize lam
+            lam = _adapt_dim(self.lam, output)
             new_output = output * (1 - lam) + self.intermediate_output2 * lam
         elif self.intermediate_output2 is None:
-            # performs mixup with intermediate output 1
-            lam = _adapt_dim(self.lam, output) # resize lam
-            new_output = output * (1 - lam) + self.intermediate_output1 * lam
             # stores intermediate ouput 2
             self.intermediate_output2 = output
+            # performs mixup with intermediate output 1
+            lam = _adapt_dim(self.lam, output)
+            new_output = output * (1 - lam) + self.intermediate_output1 * lam
         elif not self._warning_raised:
             warnings.warn('One of the mixup modules defined in the model is used more than once in forward pass. Mixup will happen only at first call.', Warning)
             self._warning_raised = True
