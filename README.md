@@ -26,4 +26,4 @@ You can add classes to `non_mixable_module_types` in order to define module clas
 This repository will be updated to [fast.ai V2](http://dev.fast.ai/) once it gets out of alpha stage.
 In the meantime, I might create a dedicated branch.
 
-We should add a warning to signal when a module is mixed several times.
+Add a demo notebook instead of a python file.

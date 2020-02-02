@@ -18,6 +18,16 @@ def _adapt_dim(t, t_target):
     t = t[(..., )*nb_current_dim + (None, ) * (nb_target_dim-nb_current_dim)]
     return t
 
+# classes of modules that should be avoided when using mixup
+non_mixable_module_types = [nn.Sequential, nn.Dropout, nn.Dropout2d, nn.Dropout3d, nn.AlphaDropout,
+                            nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d, nn.SyncBatchNorm,
+                            nn.LSTM, nn.LSTMCell, nn.GRU, nn.GRUCell, models.AWD_LSTM,
+                            nn.RNN, nn.RNNBase, nn.RNNCell, nn.RNNCellBase]
+
+def _is_mixable(m):
+    "Checks wether the module m is an instance of a module that is allowed for mixup."
+    return not any(isinstance(m, non_mixable_class) for non_mixable_class in non_mixable_module_types)
+
 class ManifoldMixupModule(Module):
     """
     Wrap a module with this class to indicate that you wish to apply manifold mixup to the output of this module.
@@ -29,16 +39,6 @@ class ManifoldMixupModule(Module):
 
     def forward(self, x, *args, **kwargs):
         return self.module(x, *args, **kwargs)
-
-# types of modules that should probably be avoided when using mixup
-non_mixable_module_types = [nn.Sequential, nn.Dropout, nn.Dropout2d, nn.Dropout3d, nn.AlphaDropout,
-                            nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d, nn.SyncBatchNorm,
-                            nn.LSTM, nn.LSTMCell, nn.GRU, nn.GRUCell, models.AWD_LSTM,
-                            nn.RNN, nn.RNNBase, nn.RNNCell, nn.RNNCellBase]
-
-def _is_mixable(m):
-    "Checks wether the module m is an instance of a module that is allowed for mixup."
-    return not any(isinstance(m, non_mixable_class) for non_mixable_class in non_mixable_module_types)
 
 class ManifoldMixupCallback(LearnerCallback):
     "Callback that creates the mixed-up input and target."
@@ -63,10 +63,12 @@ class ManifoldMixupCallback(LearnerCallback):
         # temporary variables storing intermediate states
         self.lam = None
         self.input = None
-        self.intermediate_output = None
+        self.intermediate_output1 = None
+        self.intermediate_output2 = None
         self.output = None
         self.mixup_hook = None
         self.is_input_mixup = None
+        self._warning_raised = False
         # modules on which we may apply mixup
         if not mixup_all:
             self.module_list = list(filter(lambda module: isinstance(module, ManifoldMixupModule), list(learn.model.modules())))
@@ -109,28 +111,31 @@ class ManifoldMixupCallback(LearnerCallback):
 
     def hook_mixup(self, module, input, output):
         "Interupt one run to use its intermediate results with a second model call."
-        if self.intermediate_output is None:
-            # stores intermediate output
-            self.intermediate_output = output
-            # restarts model with different input (using stored output in the mixup and producing a new intermediate output)
+        if self.intermediate_output1 is None:
+            # stores intermediate output 1
+            self.intermediate_output1 = output
+            # restarts model with different input (using intermediate output 1 in the mixup and extracting intermediate output 2)
             self.output = self.learn.model(self.input)
-            # performs mixup with new intermediate output
+            # performs mixup with intermediate output 2
             lam = _adapt_dim(self.lam, output) # resize lam
-            new_output = output * (1 - lam) + self.intermediate_output * lam
-            # clears intermediate output
-            self.intermediate_output = None
-        else:
-            # performs mixup with intermediate output computed with a different input
+            new_output = output * (1 - lam) + self.intermediate_output2 * lam
+        elif self.intermediate_output2 is None:
+            # performs mixup with intermediate output 1
             lam = _adapt_dim(self.lam, output) # resize lam
-            new_output = output * (1 - lam) + self.intermediate_output * lam
-            # stores intermediate ouput
-            self.intermediate_output = output
+            new_output = output * (1 - lam) + self.intermediate_output1 * lam
+            # stores intermediate ouput 2
+            self.intermediate_output2 = output
+        elif not self._warning_raised:
+            warnings.warn('One of the mixup modules defined in the model is used more than once in forward pass. Mixup will happen only at first call.', Warning)
+            self._warning_raised = True
         return new_output
 
     def on_loss_begin(self, last_output, train, **kwargs):
         "Removes hook and stacks outputs if needed"
         if (not train) or self.is_input_mixup: return
         self.mixup_hook.remove()
+        self.intermediate_output1 = None
+        self.intermediate_output2 = None
         if self.use_symmetric_batch:
             last_output = torch.cat((last_output, self.output), dim=0)
             return {'last_output': last_output}
