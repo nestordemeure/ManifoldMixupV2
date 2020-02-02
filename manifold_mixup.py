@@ -40,6 +40,17 @@ class ManifoldMixupModule(Module):
     def forward(self, x, *args, **kwargs):
         return self.module(x, *args, **kwargs)
 
+def _get_module_list(model, use_only_mixup_modules):
+    "returns all the modules that can be used for mixup"
+    if use_only_mixup_modules:
+        module_list = list(filter(lambda module: isinstance(module, ManifoldMixupModule), list(model.modules())))
+    else:
+        module_list = list(filter(_is_mixable, list(model.modules())))
+    if len(module_list) == 0:
+        raise ValueError('No eligible layer found for mixup. Try passing use_only_mixup_modules=False or wrap one of your modules with a ManifoldMixupModule')
+    print(f'{len(module_list)} modules eligible for mixup')
+    return module_list
+
 class ManifoldMixupCallback(LearnerCallback):
     "Callback that creates the mixed-up input and target."
     def __init__(self, learn:Learner, alpha:float=0.4, use_symmetric_batch:bool=True, use_input_mixup:bool=True, use_only_mixup_modules:bool=False):
@@ -60,6 +71,8 @@ class ManifoldMixupCallback(LearnerCallback):
         self.use_only_mixup_modules = use_only_mixup_modules
         self.use_input_mixup = use_input_mixup
         self.use_symmetric_batch = use_symmetric_batch
+        # modules on which we may apply mixup
+        self.module_list = _get_module_list(learn.model, use_only_mixup_modules)
         # temporary variables storing intermediate states
         self.lam = None
         self.input = None
@@ -69,14 +82,6 @@ class ManifoldMixupCallback(LearnerCallback):
         self.mixup_hook = None
         self.is_input_mixup = None
         self._warning_raised = False
-        # modules on which we may apply mixup
-        if use_only_mixup_modules:
-            self.module_list = list(filter(lambda module: isinstance(module, ManifoldMixupModule), list(learn.model.modules())))
-        else:
-            self.module_list = list(filter(_is_mixable, list(learn.model.modules())))
-        if len(self.module_list) == 0:
-            raise ValueError('No eligible layer found for mixup. Try passing use_only_mixup_modules=False or wrap one of your modules with a ManifoldMixupModule')
-        print(f'{len(self.module_list)} modules eligible for mixup')
 
     def on_train_begin(self, **kwargs):
         "Injects ManifoldMixupLoss on top of the current loss function."

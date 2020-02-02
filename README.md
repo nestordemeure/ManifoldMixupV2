@@ -26,3 +26,5 @@ You can add classes to `non_mixable_module_types` in order to define module clas
 
 This repository will be updated to [fast.ai V2](http://dev.fast.ai/) once it gets out of alpha stage.
 In the meantime, I might create a dedicated branch.
+
+Add `output_mixup` which is only applied to the last legal layer.
