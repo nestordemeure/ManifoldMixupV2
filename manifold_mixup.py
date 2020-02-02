@@ -71,15 +71,14 @@ class ManifoldMixupCallback(LearnerCallback):
         self.alpha = alpha
         self.use_only_mixup_modules = use_only_mixup_modules
         self.use_input_mixup = use_input_mixup
-        # modules on which we may apply mixup
         self.module_list = _get_mixup_module_list(learn.model, use_only_mixup_modules) if module_list is None else module_list
         # temporary variables storing intermediate states
-        self.lam = None
+        self.lambd = None
         self.shuffled_index = None
         self.mixup_hook = None
-        self.is_input_mixup = None
+        self.is_input_mixup = None # are we using simple input mixup
+        self.mixup_is_done = False # has the mixup step already been done
         self._warning_raised = False
-        self.mixup_is_done = False
 
     def on_train_begin(self, **kwargs):
         "Injects ManifoldMixupLoss on top of the current loss function."
@@ -91,29 +90,28 @@ class ManifoldMixupCallback(LearnerCallback):
         # creates tensor filled with the random ponderation drawn from a beta distribution of parameter alpha
         lambd = np.random.beta(self.alpha, self.alpha, last_target.size(0))
         lambd = np.concatenate([lambd[:,None], 1-lambd[:,None]], 1).max(1)
-        self.lam = torch.from_numpy(lambd).float().to(last_input.device)
+        self.lambd = torch.from_numpy(lambd).float().to(last_input.device)
         # decides on a way to shuffle inputs
         self.shuffled_index = torch.randperm(last_target.size(0)).to(last_input.device)
-        last_target2 = last_target[self.shuffled_index]
-        output_lam = self.lam
         # selects a module to apply mixup
         minimum_module_index = -1 if self.use_input_mixup else 0
         k = np.random.randint(minimum_module_index, len(self.module_list))
         if k == -1: # applies mixup to an input
             self.is_input_mixup = True
-            input_lam = _adapt_dim(self.lam, last_input)
-            last_input = (1 - input_lam) * last_input + input_lam * last_input[self.shuffled_index]
+            input_lambd = _adapt_dim(self.lambd, last_input)
+            last_input = last_input * (1 - input_lambd) + last_input[self.shuffled_index] * input_lambd
         else: # applies mixup to an inner module
             self.is_input_mixup = False
             self.mixup_hook = self.module_list[k].register_forward_hook(self.hook_mixup)
-        new_target = [last_target, last_target2, output_lam]
+        # stores the target but also a properly shuffle copy and the lambda to combine them
+        new_target = [last_target, last_target[self.shuffled_index], self.lambd]
         return {'last_input': last_input, 'last_target': new_target}
 
     def hook_mixup(self, module, input, output):
         "Interupt one run to use its intermediate results with a second model call."
         if not self.mixup_is_done: # performs mixup
-            lam = _adapt_dim(self.lam, output)
-            output = output * (1 - lam) + output[self.shuffled_index] * lam
+            lambd = _adapt_dim(self.lambd, output)
+            output = output * (1 - lambd) + output[self.shuffled_index] * lambd
             self.mixup_is_done = True
             return output
         elif not self._warning_raised:
