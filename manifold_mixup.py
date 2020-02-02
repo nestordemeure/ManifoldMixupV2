@@ -3,8 +3,9 @@ from fastai.torch_core import *
 from fastai.callback import *
 from fastai.basic_train import Learner, LearnerCallback
 from fastai.text import models
+from fastai.callbacks.mixup import MixUpLoss
 
-__all__ = ["ManifoldMixupModule", "ManifoldMixupLoss", "ManifoldMixupCallback", "non_mixable_module_types", "manifold_mixup", "output_mixup"]
+__all__ = ["ManifoldMixupModule", "ManifoldMixupCallback", "non_mixable_module_types", "manifold_mixup", "output_mixup"]
 
 def _adapt_dim(t, t_target):
     """
@@ -54,7 +55,8 @@ def _get_mixup_module_list(model, use_only_mixup_modules):
 class ManifoldMixupCallback(LearnerCallback):
     "Callback that creates the mixed-up input and target."
     def __init__(self, learn:Learner, alpha:float=0.4, use_input_mixup:bool=True,
-                 use_only_mixup_modules:bool=False, module_list:Collection=None):
+                 use_only_mixup_modules:bool=False, module_list:Collection=None, 
+                 stack_y:bool=True):
         """
         `alpha` is the parameter for the beta law.
 
@@ -65,6 +67,9 @@ class ManifoldMixupCallback(LearnerCallback):
 
         You can also hardcode the modules you want to use by passing them with `module_list`.
         Doing so will bypass `use_only_mixup_modules` but not `use_input_mixup`.
+
+        If `stack_y` is set to false, the target outputs will be directly linearly combined (good for regression).
+        Otherwise they will be stacked and forwarded to MixUpLoss which works under the hypothesis that the output is a long and performs the combinaison after having evaluated the loss (good for classification).
         """
         super().__init__(learn)
         # parameters describing the mixup
@@ -72,17 +77,18 @@ class ManifoldMixupCallback(LearnerCallback):
         self.use_only_mixup_modules = use_only_mixup_modules
         self.use_input_mixup = use_input_mixup
         self.module_list = _get_mixup_module_list(learn.model, use_only_mixup_modules) if module_list is None else module_list
+        self.stack_y = stack_y
         # temporary variables storing intermediate states
-        self.lambd = None
-        self.shuffled_index = None
-        self.mixup_hook = None
-        self.is_input_mixup = None # are we using simple input mixup
-        self.mixup_is_done = False # has the mixup step already been done
+        self._lambd = None
+        self._shuffled_index = None
+        self._mixup_hook = None
+        self._is_input_mixup = None # are we using simple input mixup
+        self._mixup_is_done = False # has the mixup step already been done
         self._warning_raised = False
 
     def on_train_begin(self, **kwargs):
-        "Injects ManifoldMixupLoss on top of the current loss function."
-        self.learn.loss_func = ManifoldMixupLoss(self.learn.loss_func)
+        "Injects MixupLoss on top of the current loss function."
+        if self.stack_y: self.learn.loss_func = MixUpLoss(self.learn.loss_func)
 
     def on_batch_begin(self, last_input, last_target, train, **kwargs):
         "Selects a module to apply mixup and modifies the target accordingly."
@@ -90,29 +96,36 @@ class ManifoldMixupCallback(LearnerCallback):
         # creates tensor filled with the random ponderation drawn from a beta distribution of parameter alpha
         lambd = np.random.beta(self.alpha, self.alpha, last_target.size(0))
         lambd = np.concatenate([lambd[:,None], 1-lambd[:,None]], 1).max(1)
-        self.lambd = torch.from_numpy(lambd).float().to(last_input.device)
+        self._lambd = torch.from_numpy(lambd).float().to(last_input.device)
         # decides on a way to shuffle inputs
-        self.shuffled_index = torch.randperm(last_target.size(0)).to(last_input.device)
+        self._shuffled_index = torch.randperm(last_target.size(0)).to(last_input.device)
         # selects a module to apply mixup
         minimum_module_index = -1 if self.use_input_mixup else 0
         k = np.random.randint(minimum_module_index, len(self.module_list))
         if k == -1: # applies mixup to an input
-            self.is_input_mixup = True
-            input_lambd = _adapt_dim(self.lambd, last_input)
-            last_input = last_input * (1 - input_lambd) + last_input[self.shuffled_index] * input_lambd
+            self._is_input_mixup = True
+            input_lambd = _adapt_dim(self._lambd, last_input)
+            last_input = last_input * input_lambd + last_input[self._shuffled_index] * (1 - input_lambd)
         else: # applies mixup to an inner module
-            self.is_input_mixup = False
-            self.mixup_hook = self.module_list[k].register_forward_hook(self.hook_mixup)
-        # stores the target but also a properly shuffle copy and the lambda to combine them
-        new_target = [last_target, last_target[self.shuffled_index], self.lambd]
+            self._is_input_mixup = False
+            self._mixup_hook = self.module_list[k].register_forward_hook(self.hook_mixup)
+        # process the target
+        output_lambd = _adapt_dim(self._lambd, last_target)
+        last_target2 = last_target[self._shuffled_index]
+        if self.stack_y:
+            # stores the target but also a properly shuffled copy and the lambda to combine them
+            new_target = torch.cat([last_target[:,None].float(), last_target2[:,None].float(), output_lambd[:,None].float()], 1)
+        else:
+            # mixes the targets
+            new_target = last_target.float() * output_lambd + last_target2.float() * (1-output_lambd)
         return {'last_input': last_input, 'last_target': new_target}
 
     def hook_mixup(self, module, input, output):
         "Interupt one run to use its intermediate results with a second model call."
-        if not self.mixup_is_done: # performs mixup
-            lambd = _adapt_dim(self.lambd, output)
-            output = output * (1 - lambd) + output[self.shuffled_index] * lambd
-            self.mixup_is_done = True
+        if not self._mixup_is_done: # performs mixup
+            lambd = _adapt_dim(self._lambd, output)
+            output = output * lambd + output[self._shuffled_index] * (1 - lambd)
+            self._mixup_is_done = True
             return output
         elif not self._warning_raised:
             warnings.warn('One of the mixup modules defined in the model is used more than once in forward pass. Mixup will happen only at first call.', Warning)
@@ -120,58 +133,23 @@ class ManifoldMixupCallback(LearnerCallback):
 
     def on_loss_begin(self, train, **kwargs):
         "Removes hook and stacks outputs if needed"
-        if (not train) or self.is_input_mixup: return
-        self.mixup_hook.remove()
-        self.mixup_is_done = False
+        if (not train) or self._is_input_mixup: return
+        self._mixup_hook.remove()
+        self._mixup_is_done = False
 
     def on_train_end(self, **kwargs):
         "Restores the original loss function"
-        self.learn.loss_func = self.learn.loss_func.get_old()
+        if self.stack_y: self.learn.loss_func = self.learn.loss_func.get_old()
 
-# TODO can we use the loss from input mixup ?
-class ManifoldMixupLoss(Module):
-    "Adapts the loss function `criterion` to be used with manifold mixup."
-    def __init__(self, criterion, reduction='mean'):
-        super().__init__()
-        if hasattr(criterion, 'reduction'):
-            self.criterion = criterion
-            self.old_red = criterion.reduction
-            setattr(self.criterion, 'reduction', 'none')
-        else:
-            self.criterion = partial(criterion, reduction='none')
-            self.old_crit = criterion
-        self.reduction = reduction
-
-    def forward(self, output, *target):
-        if len(target) != 3:
-            finalLoss = self.criterion(output, target[0])
-        else:
-            (target1, target2, lam) = target
-            loss1 = self.criterion(output,target1)
-            loss2 = self.criterion(output,target2)
-            lam = _adapt_dim(lam, loss1)
-            finalLoss = loss1 * (1-lam) + loss2 * lam
-        if self.reduction == 'mean':  return finalLoss.mean()
-        if self.reduction == 'sum':   return finalLoss.sum()
-        return finalLoss
-
-    def get_old(self):
-        "Returns the original loss function"
-        if hasattr(self, 'old_crit'):
-            return self.old_crit
-        elif hasattr(self, 'old_red'):
-            setattr(self.criterion, 'reduction', self.old_red)
-            return self.criterion
-
-def manifold_mixup(learn:Learner, alpha:float=0.4, use_input_mixup:bool=True, use_only_mixup_modules:bool=False, module_list:Collection=None) -> Learner:
+def manifold_mixup(learn:Learner, alpha:float=0.4, use_input_mixup:bool=True, use_only_mixup_modules:bool=False, module_list:Collection=None, stack_y:bool=True) -> Learner:
     "Adds manifold-mixup http://proceedings.mlr.press/v97/verma19a/verma19a.pdf to `learn`."
-    learn.callback_fns.append(partial(ManifoldMixupCallback, alpha=alpha, use_input_mixup=use_input_mixup, use_only_mixup_modules=use_only_mixup_modules, module_list=module_list))
+    learn.callback_fns.append(partial(ManifoldMixupCallback, alpha=alpha, use_input_mixup=use_input_mixup, use_only_mixup_modules=use_only_mixup_modules, module_list=module_list, stack_y=stack_y))
     return learn
 
-def output_mixup(learn:Learner, alpha:float=0.4, use_only_mixup_modules:bool=False) -> Learner:
+def output_mixup(learn:Learner, alpha:float=0.4, use_only_mixup_modules:bool=False, stack_y:bool=True) -> Learner:
     "Adds a variant of manifold-mixup, that is only applied to the last viable module, to `learn`."
     module_list = [_get_mixup_module_list(learn.model, use_only_mixup_modules)[-1]]
-    learn.callback_fns.append(partial(ManifoldMixupCallback, alpha=alpha, use_input_mixup=False, use_only_mixup_modules=use_only_mixup_modules, module_list=module_list))
+    learn.callback_fns.append(partial(ManifoldMixupCallback, alpha=alpha, use_input_mixup=False, use_only_mixup_modules=use_only_mixup_modules, module_list=module_list, stack_y=stack_y))
     return learn
 
 # adds manifold_mixup to Learner's available methods

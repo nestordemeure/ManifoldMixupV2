@@ -20,8 +20,9 @@ The `manifold_mixup` method takes four parameters :
 - `use_input_mixup=True` do you want to apply mixup to the inputs
 - `use_only_mixup_modules=False` do you want to restrict mixup to the modules wrapped with a `ManifoldMixupModule` instead of any valid module 
 - `module_list=None` you can also bypass `use_only_mixup_modules` (but not `use_input_mixup`) by directly passing the list of modules you want to use.
+- `stack_y=True` do you want to perform the combinaison after the evaluation of the loss function (good for classification) or directly on the raw targets (good for regression).
 
-The `output_mixup` variant takes only the `alpha`, `use_symmetric_batch` and `use_only_mixup_modules` parameters.
+The `output_mixup` variant takes only the `alpha`, `use_only_mixup_modules` and `stack_y` parameters.
 
 ## Mixup compatible modules
 
