@@ -8,14 +8,14 @@ This package provides two additional methods to the fastai learner :
 
 ## Usage
 
-To use manifold mixup, you just need to call the `manifold_mixup` method on your learner (for a short demonstration, see the [Demo notebook](https://github.com/nestordemeure/ManifoldMixup/blob/master/Demo.ipynb)):
+To use manifold mixup, you just need to call the `manifold_mixup` method on your learner (for a minimal demonstration, see the [Demo notebook](https://github.com/nestordemeure/ManifoldMixup/blob/master/Demo.ipynb)):
 
 ```python
 learner = Learner(data, model).manifold_mixup()
 learner.fit(8)
 ```
 
-The `manifold_mixup` method takes four parameters :
+The `manifold_mixup` method takes five parameters :
 - `alpha=0.4` parameter of the beta law used for sampling the interpolation weight
 - `use_input_mixup=True` do you want to apply mixup to the inputs
 - `use_only_mixup_modules=False` do you want to restrict mixup to the modules wrapped with a `ManifoldMixupModule` instead of any valid module 
@@ -27,7 +27,7 @@ The `output_mixup` variant takes only the `alpha`, `use_only_mixup_modules` and 
 ## Mixup compatible modules
 
 By default most modules can be used for mixup, notable exceptions include `Batchnorm` layers and most recurent layers. 
-You can add classes to the `non_mixable_module_types` list in order to define module classes that should not be used for mixup.
+You can add classes to the `non_mixable_module_types` list in order to define module classes that should not be used for mixup (*do not hesitate to create an issue or start a PR to add common modules to the default list*).
 
 If you want to target only a subset of the modules used in your model, you can either wrap them with a `ManifoldMixupModule` and set `use_only_mixup_modules` to `True` or pass them directly with the `module_list` parameter.
 
