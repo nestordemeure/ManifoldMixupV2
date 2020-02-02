@@ -14,11 +14,11 @@ learner.fit(8)
 
 The `manifold_mixup` method takes four parameters :
 - `alpha=0.4` parameter of the beta law used for sampling the interpolation weight
-- `mixup_all=True` do you want to apply mixup to any random module or only modules wrapped with a `ManifoldMixupModule`
-- `use_input_mixup=True` do you want to apply mixup to the inputs
 - `use_symmetric_batch=True` do you want to use both the outputs produced by `λ*x1 + (1-λ)*x2` and `λ*x2 + (1-λ)*x1` in order to avoid wasted computations
+- `use_input_mixup=True` do you want to apply mixup to the inputs
+- `use_only_mixup_modules=False` do you want to apply mixup to any valid module or only modules wrapped with a `ManifoldMixupModule`
 
-By default, any module can be used for mixup but, if you want to restrict it to a subset of modules, you can wrap them with a `ManifoldMixupModule`. 
+By default, most module can be used for mixup but, if you want to restrict it to a subset of modules in your model, you can wrap them with a `ManifoldMixupModule`. 
 
 You can add classes to `non_mixable_module_types` in order to define module classes that should not be used for mixup.
 
