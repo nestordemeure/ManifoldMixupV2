@@ -1,4 +1,8 @@
-"Implements a fastai callback for the [Manifold Mixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf) training method."
+# Manifold Mixup
+# Implements a fastai callback for the Manifold Mixup training method.
+# source: https://github.com/nestordemeure/ManifoldMixup
+# reference: http://proceedings.mlr.press/v97/verma19a/verma19a.pdf
+
 from fastai.torch_core import *
 from fastai.callback import *
 from fastai.basic_train import Learner, LearnerCallback
