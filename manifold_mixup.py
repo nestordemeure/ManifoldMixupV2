@@ -133,10 +133,11 @@ class ManifoldMixupCallback(LearnerCallback):
             self._mixup_is_done = True
             return output
         elif not self._warning_raised:
-            warnings.warn("One of the mixup modules (" + str(type(module)) + ") defined in the model is used more than once in forward pass. Mixup will happen only at first call.\n" \
-                          "This warning might be due to :\n" \
+            warnings.warn("One of the mixup modules (" + str(type(module)) + ") defined in the model is used more than once in forward pass.\n" \
+                          "Mixup will happen only at first call. This warning might be due to :\n" \
                           "- a recurent modules being intrumented or a single module being aplied to different inputs (you should add those modules to `non_mixable_module_types` as they might interfere with mixup),\n" \
-                          "- a module being applied to its own output in a loop (in which case you can safely ignore this warning).", Warning)
+                          "- a module being applied to its own output in a loop (in which case you can safely ignore this warning).",
+                          Warning)
             self._warning_raised = True
 
     def on_loss_begin(self, train, **kwargs):
