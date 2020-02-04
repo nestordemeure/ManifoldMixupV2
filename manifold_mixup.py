@@ -24,8 +24,8 @@ def _adapt_dim(t, t_target):
     return t
 
 # classes of modules that should be avoided when using mixup
+# mostly modules that are just propagating their inputs and recurent layers
 non_mixable_module_types = [nn.Sequential, nn.Dropout, nn.Dropout2d, nn.Dropout3d, nn.AlphaDropout,
-                            nn.Conv1d, nn.Conv2d, nn.Conv3d, nn.ConvTranspose1d, nn.ConvTranspose2d, nn.ConvTranspose3d,
                             nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d, nn.SyncBatchNorm,
                             nn.LSTM, nn.LSTMCell, nn.GRU, nn.GRUCell, models.AWD_LSTM,
                             nn.RNN, nn.RNNBase, nn.RNNCell, nn.RNNCellBase]
@@ -133,7 +133,10 @@ class ManifoldMixupCallback(LearnerCallback):
             self._mixup_is_done = True
             return output
         elif not self._warning_raised:
-            warnings.warn('One of the mixup modules defined in the model is used more than once in forward pass. Mixup will happen only at first call.', Warning)
+            warnings.warn("One of the mixup modules (" + type(module) + ") defined in the model is used more than once in forward pass. Mixup will happen only at first call.\n" \
+                          "This warning might be due to :\n" \
+                          "- a recurent modules being intrumented or a single module being aplied to different inputs (you should add those modules to `non_mixable_module_types` as they might interfere with mixup),\n" \
+                          "- a module being applied to its own output in a loop (in which case you can safely ignore this warning).", Warning)
             self._warning_raised = True
 
     def on_loss_begin(self, train, **kwargs):
