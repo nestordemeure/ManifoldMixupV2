@@ -4,7 +4,7 @@ Unofficial implementation of [ManifoldMixup](http://proceedings.mlr.press/v97/ve
 
 This package provides two additional methods to the fastai learner :
 - `.manifold_mixup()` which implements [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf)
-- `.output_mixup()` which implements a variant that does the mixup on the last viable layer only
+- `.output_mixup()` which implements a variant that does the mixup on the last viable layer only (this was shown to be more performant on a [benchmark](https://forums.fast.ai/t/mixup-data-augmentation/22764/64))
 
 ## Usage
 
