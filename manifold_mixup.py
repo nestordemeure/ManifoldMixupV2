@@ -25,6 +25,7 @@ def _adapt_dim(t, t_target):
 
 # classes of modules that should be avoided when using mixup
 non_mixable_module_types = [nn.Sequential, nn.Dropout, nn.Dropout2d, nn.Dropout3d, nn.AlphaDropout,
+                            nn.Conv1d, nn.Conv2d, nn.Conv3d, nn.ConvTranspose1d, nn.ConvTranspose2d, nn.ConvTranspose3d,
                             nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d, nn.SyncBatchNorm,
                             nn.LSTM, nn.LSTMCell, nn.GRU, nn.GRUCell, models.AWD_LSTM,
                             nn.RNN, nn.RNNBase, nn.RNNCell, nn.RNNCellBase]
