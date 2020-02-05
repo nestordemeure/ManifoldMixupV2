@@ -123,6 +123,7 @@ class ManifoldMixupCallback(LearnerCallback):
         self.alpha = alpha
         self.use_input_mixup = use_input_mixup
         self.module_list = _get_mixup_module_list(learn.model, module_list)
+        for m in self.module_list: print(type(m))
         self.stack_y = stack_y
         # temporary variables storing intermediate states
         self._lambd = None
