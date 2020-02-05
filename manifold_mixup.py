@@ -73,7 +73,7 @@ def _get_mixup_module_list(model, module_list=None):
     # checks for any module that is mixable
     mixable_modules = list(filter(_is_mixable, module_list))
     if len(mixable_modules) != 0:
-        print(f'{len(mixable_modules)} modules will be used for mixup.')
+        print(f'Manifold mixup: no known network structure detected, {len(mixable_modules)} modules will be used for mixup.')
         return mixable_modules
     # no module has been found
     raise ValueError('No eligible layer found for mixup. Try wrapping candidate modules with ManifoldMixupModule or passing an explicit list of targets with module_list')
@@ -111,7 +111,7 @@ class ManifoldMixupCallback(LearnerCallback):
 
         If `stack_y` is set to false, the target outputs will be directly linearly combined (good for regression).
         Otherwise they will be stacked and forwarded to MixUpLoss which works under the hypothesis that the output is a long and performs the combinaison after having evaluated the loss (good for classification).
-        
+
         The algorithm tries to establish a sensible list of modules on which to apply mixup:
         - it uses a user provided `module_list` if possible
         - otherwise it uses only the modules wrapped with `ManifoldMixupModule`
