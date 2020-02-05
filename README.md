@@ -49,3 +49,5 @@ In which case, the best way to apply manifold mixup is to manually select the mo
 
 This repository will be updated to [fast.ai V2](http://dev.fast.ai/) once it gets out of alpha stage.
 In the meantime, I might create a dedicated branch.
+
+*For more unofficial fastai extensions, see the [Fastai Extensions Repository](https://github.com/nestordemeure/fastai-extensions-repository).*
