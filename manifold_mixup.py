@@ -46,7 +46,7 @@ def is_suitable_output_module(m):
     moduleName = str(type(m)).lower()
     return not (("loss" in moduleName) or ("max" in moduleName))
 
-# TODO implement Unet specific behaviour that uses only decoder modules
+# TODO implement Unet specific behaviour that uses only the blocks in the decoder modules
 def _get_mixup_module_list(model, module_list=None):
     "returns all the modules that can be used for mixup"
     # checks for a user defined module list
@@ -73,7 +73,7 @@ def _get_mixup_module_list(model, module_list=None):
     raise ValueError('No eligible layer found for mixup. Try wrapping candidate modules with ManifoldMixupModule or passing an explicit list of targets with module_list')
 
 def _get_output_module(model):
-    "returns the last module suitable for mixup"
+    "returns the last module suitable for output mixup (neither loss nor softmax)"
     module_list = list(model.modules())
     output_module = next((m for m in reversed(module_list) if is_suitable_output_module(m)), None)
     if output_module is not None: return output_module
@@ -105,18 +105,19 @@ class ManifoldMixupCallback(LearnerCallback):
 
         If `stack_y` is set to false, the target outputs will be directly linearly combined (good for regression).
         Otherwise they will be stacked and forwarded to MixUpLoss which works under the hypothesis that the output is a long and performs the combinaison after having evaluated the loss (good for classification).
-
-        The mixup will be applied to:
-        - the modules in `module_list` if it is set
-        - the modules wrapped with `ManifoldMixupModule`
-        - the modules containing `Block` in their name (mostly resBlocks)
-        - any viable module (most non recurent layers)
+        
+        The algorithm tries to establish a sensible list of modules on which to apply mixup:
+        - it uses a user provided `module_list` if possible
+        - otherwise it uses only the modules wrapped with `ManifoldMixupModule`
+        - if none are found, it defaults to modules with `Block` in their name (targetting mostly resblocks)
+        - finaly, if needed, it defaults to all modules that are not included in the `non_mixable_module_types` list
         """
         super().__init__(learn)
         # parameters describing the mixup
         self.alpha = alpha
         self.use_input_mixup = use_input_mixup
         self.module_list = _get_mixup_module_list(learn.model, module_list)
+        for m in self.module_list: print(type(m))
         self.stack_y = stack_y
         # temporary variables storing intermediate states
         self._lambd = None
