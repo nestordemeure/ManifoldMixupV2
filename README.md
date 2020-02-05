@@ -4,7 +4,7 @@ Unofficial implementation of [ManifoldMixup](http://proceedings.mlr.press/v97/ve
 
 This package provides two additional methods to the fastai learner :
 - `.manifold_mixup()` which implements [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf)
-- `.output_mixup()` which implements a variant that does the mixup on the last viable layer only (this was shown to be more performant on a [benchmark](https://forums.fast.ai/t/mixup-data-augmentation/22764/64) and an independant [blogpost](https://medium.com/analytics-vidhya/better-result-with-mixup-at-final-layer-e9ba3a4a0c41))
+- `.output_mixup()` which implements a variant that does the mixup on the last viable layer only (this was shown to be more performant on a [benchmark](https://forums.fast.ai/t/mixup-data-augmentation/22764/72) and an independant [blogpost](https://medium.com/analytics-vidhya/better-result-with-mixup-at-final-layer-e9ba3a4a0c41))
 
 ## Usage
 
@@ -40,10 +40,10 @@ The `non_mixable_module_types` list contains mostly recurrent layers but you can
 ### A note on skip-connections / residual-blocks
 
 `manifold_mixup` (this does not apply to `output_mixup`) is greatly degraded when applied *inside* a residual block.
-This is due to the input being mixed-up and the output of the skip connection (which have not been mixed) becoming incoherent with one another.
+This is due to the mixed-up values becoming incoherent with the output of the skip connection (which have not been mixed).
 
-While this implementation is equiped to work around the problem for U-Net and ResNet like architectures, you might run into it with other network structures.
-In which case, the best way to apply manifold mixup is to manually select the modules to be instrumented.
+While this implementation is equiped to work around the problem for U-Net and ResNet like architectures, you might run into problems (negligeable improvements over the baseline) with other network structures.
+In which case, the best way to apply manifold mixup would be to manually select the modules to be instrumented.
 
 ## Todo
 
