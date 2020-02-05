@@ -11,28 +11,8 @@ from fastai.callbacks.mixup import MixUpLoss
 
 __all__ = ["ManifoldMixupModule", "ManifoldMixupCallback", "non_mixable_module_types", "manifold_mixup", "output_mixup"]
 
-def _adapt_dim(t, t_target):
-    """
-    Takes a tensor and adds trailing dimensions until it fits the dimension of the target tensor
-    This function is useful to multiply tensors of arbitrary size
-    implementation inspired by: https://github.com/pytorch/pytorch/issues/9410#issuecomment-552786888
-    """
-    # this might be implementable with `view` (?)
-    nb_current_dim = t.dim()
-    nb_target_dim = t_target.dim()
-    t = t[(..., )*nb_current_dim + (None, ) * (nb_target_dim-nb_current_dim)]
-    return t
-
-# classes of modules that should be avoided when using mixup
-# mostly modules that are just propagating their inputs and recurent layers
-non_mixable_module_types = [nn.Sequential, nn.Dropout, nn.Dropout2d, nn.Dropout3d, nn.AlphaDropout,
-                            nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d, nn.SyncBatchNorm,
-                            nn.LSTM, nn.LSTMCell, nn.GRU, nn.GRUCell, models.AWD_LSTM,
-                            nn.RNN, nn.RNNBase, nn.RNNCell, nn.RNNCellBase]
-
-def _is_mixable(m):
-    "Checks wether the module m is an instance of a module that is allowed for mixup."
-    return not any(isinstance(m, non_mixable_class) for non_mixable_class in non_mixable_module_types)
+#------------------------------------------------------------------------------
+# Module selection
 
 class ManifoldMixupModule(Module):
     """
@@ -46,42 +26,97 @@ class ManifoldMixupModule(Module):
     def forward(self, x, *args, **kwargs):
         return self.module(x, *args, **kwargs)
 
-def _get_mixup_module_list(model, use_only_mixup_modules):
+# classes of modules that should be avoided when using mixup
+# mostly modules that are just propagating their inputs and recurent layers
+non_mixable_module_types = [nn.Sequential, nn.Dropout, nn.Dropout2d, nn.Dropout3d, nn.AlphaDropout,
+                            nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d, nn.SyncBatchNorm,
+                            nn.LSTM, nn.LSTMCell, nn.GRU, nn.GRUCell, models.AWD_LSTM,
+                            nn.RNN, nn.RNNBase, nn.RNNCell, nn.RNNCellBase]
+
+def _is_mixable(m):
+    "Checks wether the module m is an instance of a module that is allowed for mixup."
+    return not any(isinstance(m, non_mixable_class) for non_mixable_class in non_mixable_module_types)
+
+def _is_block_module(m):
+    "Checks wether a module is a Block (typically a kind of resBlock)"
+    return "block" in str(type(m)).lower()
+
+def is_suitable_output_module(m):
+    "Returns true if the module is a suitable output module"
+    moduleName = str(type(m)).lower()
+    return not (("loss" in moduleName) or ("max" in moduleName))
+
+# TODO implement Unet specific behaviour that uses only decoder modules
+def _get_mixup_module_list(model, module_list=None):
     "returns all the modules that can be used for mixup"
-    if use_only_mixup_modules:
-        module_list = list(filter(lambda module: isinstance(module, ManifoldMixupModule), list(model.modules())))
-    else:
-        module_list = list(filter(_is_mixable, list(model.modules())))
-    if len(module_list) == 0:
-        raise ValueError('No eligible layer found for mixup. Try passing use_only_mixup_modules=False or wrap one of your modules with a ManifoldMixupModule')
-    print(f'{len(module_list)} modules eligible for mixup')
-    return module_list
+    # checks for a user defined module list
+    if module_list is not None:
+        print(f'Manifold mixup: user defined module list detected, {len(module_list)} modules will be used for mixup.')
+        return module_list
+    module_list = list(model.modules())
+    # checks for modules wrapped with ManifoldMixupModule
+    user_wrapped_modules = list(filter(lambda module: isinstance(module, ManifoldMixupModule), module_list))
+    if len(user_wrapped_modules) != 0:
+        print(f'Manifold mixup: ManifoldMixupModule modules detected, {len(user_wrapped_modules)} modules will be used for mixup.')
+        return user_wrapped_modules
+    # checks for blocks
+    block_modules = list(filter(_is_block_module, module_list))
+    if len(block_modules) != 0:
+        print(f'Manifold mixup: Block structure detected, {len(block_modules)} modules will be used for mixup.')
+        return block_modules
+    # checks for any module that is mixable
+    mixable_modules = list(filter(_is_mixable, module_list))
+    if len(mixable_modules) != 0:
+        print(f'{len(mixable_modules)} modules will be used for mixup.')
+        return mixable_modules
+    # no module has been found
+    raise ValueError('No eligible layer found for mixup. Try wrapping candidate modules with ManifoldMixupModule or passing an explicit list of targets with module_list')
+
+def _get_output_module(model):
+    "returns the last module suitable for mixup"
+    module_list = list(model.modules())
+    output_module = next((m for m in reversed(module_list) if is_suitable_output_module(m)), None)
+    if output_module is not None: return output_module
+    raise ValueError('No eligible layer found for mixup.')
+
+#------------------------------------------------------------------------------
+# Manifold Mixup
+
+def _adapt_dim(t, t_target):
+    """
+    Takes a tensor and adds trailing dimensions until it fits the dimension of the target tensor
+    This function is useful to multiply tensors of arbitrary size
+    implementation inspired by: https://github.com/pytorch/pytorch/issues/9410#issuecomment-552786888
+    """
+    # this might be implementable with `view` (?)
+    nb_current_dim = t.dim()
+    nb_target_dim = t_target.dim()
+    t = t[(..., )*nb_current_dim + (None, ) * (nb_target_dim-nb_current_dim)]
+    return t
 
 class ManifoldMixupCallback(LearnerCallback):
     "Callback that creates the mixed-up input and target."
     def __init__(self, learn:Learner, alpha:float=0.4, use_input_mixup:bool=True,
-                 use_only_mixup_modules:bool=False, module_list:Collection=None, 
-                 stack_y:bool=True):
+                 module_list:Collection=None, stack_y:bool=True):
         """
         `alpha` is the parameter for the beta law.
 
         If `use_input_mixup` is set to True, mixup might also be applied to the inputs.
 
-        If `use_only_mixup_modules` is set to false, mixup will be applied to a random valid module.
-        Oherwise it will only be applied to the modules wrapped with ManifoldMixupModule.
-
-        You can also hardcode the modules you want to use by passing them with `module_list`.
-        Doing so will bypass `use_only_mixup_modules` but not `use_input_mixup`.
-
         If `stack_y` is set to false, the target outputs will be directly linearly combined (good for regression).
         Otherwise they will be stacked and forwarded to MixUpLoss which works under the hypothesis that the output is a long and performs the combinaison after having evaluated the loss (good for classification).
+
+        The mixup will be applied to:
+        - the modules in `module_list` if it is set
+        - the modules wrapped with `ManifoldMixupModule`
+        - the modules containing `Block` in their name (mostly resBlocks)
+        - any viable module (most non recurent layers)
         """
         super().__init__(learn)
         # parameters describing the mixup
         self.alpha = alpha
-        self.use_only_mixup_modules = use_only_mixup_modules
         self.use_input_mixup = use_input_mixup
-        self.module_list = _get_mixup_module_list(learn.model, use_only_mixup_modules) if module_list is None else module_list
+        self.module_list = _get_mixup_module_list(learn.model, module_list)
         self.stack_y = stack_y
         # temporary variables storing intermediate states
         self._lambd = None
@@ -133,7 +168,7 @@ class ManifoldMixupCallback(LearnerCallback):
             self._mixup_is_done = True
             return output
         elif not self._warning_raised:
-            warnings.warn("One of the mixup modules (" + str(type(module)) + ") defined in the model is used more than once in forward pass.\n" \
+            warnings.warn(f"One of the mixup modules ({ type(module) }) defined in the model is used more than once in forward pass.\n" \
                           "Mixup will happen only at first call. This warning might be due to :\n" \
                           "- a recurent modules being intrumented or a single module being aplied to different inputs (you should add those modules to `non_mixable_module_types` as they might interfere with mixup),\n" \
                           "- a module being applied to its own output in a loop (in which case you can safely ignore this warning).",
@@ -150,15 +185,15 @@ class ManifoldMixupCallback(LearnerCallback):
         "Restores the original loss function"
         if self.stack_y: self.learn.loss_func = self.learn.loss_func.get_old()
 
-def manifold_mixup(learn:Learner, alpha:float=0.4, use_input_mixup:bool=True, use_only_mixup_modules:bool=False, module_list:Collection=None, stack_y:bool=True) -> Learner:
+def manifold_mixup(learn:Learner, alpha:float=0.4, use_input_mixup:bool=True, module_list:Collection=None, stack_y:bool=True) -> Learner:
     "Adds manifold-mixup http://proceedings.mlr.press/v97/verma19a/verma19a.pdf to `learn`."
-    learn.callback_fns.append(partial(ManifoldMixupCallback, alpha=alpha, use_input_mixup=use_input_mixup, use_only_mixup_modules=use_only_mixup_modules, module_list=module_list, stack_y=stack_y))
+    learn.callback_fns.append(partial(ManifoldMixupCallback, alpha=alpha, use_input_mixup=use_input_mixup, module_list=module_list, stack_y=stack_y))
     return learn
 
-def output_mixup(learn:Learner, alpha:float=0.4, use_only_mixup_modules:bool=False, stack_y:bool=True) -> Learner:
+def output_mixup(learn:Learner, alpha:float=0.4, stack_y:bool=True) -> Learner:
     "Adds a variant of manifold-mixup, that is only applied to the last viable module, to `learn`."
-    module_list = [_get_mixup_module_list(learn.model, use_only_mixup_modules)[-1]]
-    learn.callback_fns.append(partial(ManifoldMixupCallback, alpha=alpha, use_input_mixup=False, use_only_mixup_modules=use_only_mixup_modules, module_list=module_list, stack_y=stack_y))
+    module_list = [_get_output_module(learn.model)]
+    learn.callback_fns.append(partial(ManifoldMixupCallback, alpha=alpha, use_input_mixup=False, module_list=module_list, stack_y=stack_y))
     return learn
 
 # adds manifold_mixup to Learner's available methods
