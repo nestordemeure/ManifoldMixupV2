@@ -6,7 +6,8 @@
 from fastai.torch_core import *
 from fastai.callback import *
 from fastai.basic_train import Learner, LearnerCallback
-from fastai.text import models
+from fastai.text.models import AWD_LSTM
+from fastai.vision.models import UnetBlock
 from fastai.callbacks.mixup import MixUpLoss
 
 __all__ = ["ManifoldMixupModule", "ManifoldMixupCallback", "non_mixable_module_types", "manifold_mixup", "output_mixup"]
@@ -30,7 +31,7 @@ class ManifoldMixupModule(Module):
 # mostly modules that are just propagating their inputs and recurent layers
 non_mixable_module_types = [nn.Sequential, nn.Dropout, nn.Dropout2d, nn.Dropout3d, nn.AlphaDropout,
                             nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d, nn.SyncBatchNorm,
-                            nn.LSTM, nn.LSTMCell, nn.GRU, nn.GRUCell, models.AWD_LSTM,
+                            nn.LSTM, nn.LSTMCell, nn.GRU, nn.GRUCell, AWD_LSTM,
                             nn.RNN, nn.RNNBase, nn.RNNCell, nn.RNNCellBase]
 
 def _is_mixable(m):
@@ -46,7 +47,6 @@ def is_suitable_output_module(m):
     moduleName = str(type(m)).lower()
     return not (("loss" in moduleName) or ("max" in moduleName))
 
-# TODO implement Unet specific behaviour that uses only the blocks in the decoder modules
 def _get_mixup_module_list(model, module_list=None):
     "returns all the modules that can be used for mixup"
     # checks for a user defined module list
@@ -59,6 +59,12 @@ def _get_mixup_module_list(model, module_list=None):
     if len(user_wrapped_modules) != 0:
         print(f'Manifold mixup: ManifoldMixupModule modules detected, {len(user_wrapped_modules)} modules will be used for mixup.')
         return user_wrapped_modules
+    # checks for UnetBlock to only instrument the decoder part of a U-Net
+    # following the recommendations of: `Prostate Cancer Segmentation using Manifold Mixup U-Net`
+    ublock_modules = list(filter(lambda module: isinstance(module, UnetBlock), module_list))
+    if len(ublock_modules) != 0:
+        print(f'Manifold mixup: U-Net structure detected, {len(ublock_modules)} modules will be used for mixup.')
+        return ublock_modules
     # checks for blocks
     block_modules = list(filter(_is_block_module, module_list))
     if len(block_modules) != 0:
@@ -117,7 +123,6 @@ class ManifoldMixupCallback(LearnerCallback):
         self.alpha = alpha
         self.use_input_mixup = use_input_mixup
         self.module_list = _get_mixup_module_list(learn.model, module_list)
-        for m in self.module_list: print(type(m))
         self.stack_y = stack_y
         # temporary variables storing intermediate states
         self._lambd = None

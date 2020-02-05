@@ -39,5 +39,3 @@ The `non_mixable_module_types` list contains mostly recurrent layers but you can
 
 This repository will be updated to [fast.ai V2](http://dev.fast.ai/) once it gets out of alpha stage.
 In the meantime, I might create a dedicated branch.
-
-Add a Unet specific module list selection algorithm.
