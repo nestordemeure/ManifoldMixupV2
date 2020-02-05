@@ -23,7 +23,9 @@ The `manifold_mixup` method takes four parameters :
 
 The `output_mixup` variant takes only the `alpha` and `stack_y` parameters.
 
-## Mixup compatible modules
+## Modules
+
+### Which modules will be intrumented ?
 
 `manifold_mixup` tries to establish a sensible list of modules on which to apply mixup:
 - it uses a user provided `module_list` if possible
@@ -34,6 +36,14 @@ The `output_mixup` variant takes only the `alpha` and `stack_y` parameters.
 `output_mixup` is slightly different in that it will simply use the last layer that is neither a loss nor a softmax.
 
 The `non_mixable_module_types` list contains mostly recurrent layers but you can add elements to it in order to define module classes that should not be used for mixup (*do not hesitate to create an issue or start a PR to add common modules to the default list*).
+
+### A note on skip-connections / residual-blocks
+
+`manifold_mixup` (this does not apply to `output_mixup`) is greatly degraded when applied *inside* a residual block.
+This is due to the input being mixed-up and the input going through the skip connection becoming incoherent with one another.
+
+While this implementation is equiped to work around the problem for ResNet and U-Net architectures, you might run into it with other network structures.
+In which case, the best way to apply manifold mixup is to manually select the modules to be instrumented.
 
 ## Todo
 
