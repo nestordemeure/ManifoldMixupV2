@@ -40,7 +40,7 @@ The `non_mixable_module_types` list contains mostly recurrent layers but you can
 ### A note on skip-connections / residual-blocks
 
 `manifold_mixup` (this does not apply to `output_mixup`) is greatly degraded when applied *inside* a residual block.
-This is due to the input being mixed-up and the input going through the skip connection becoming incoherent with one another.
+This is due to the input being mixed-up and the output of the skip connection (which have not been mixed) becoming incoherent with one another.
 
 While this implementation is equiped to work around the problem for U-Net and ResNet like architectures, you might run into it with other network structures.
 In which case, the best way to apply manifold mixup is to manually select the modules to be instrumented.
