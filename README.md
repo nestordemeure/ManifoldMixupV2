@@ -1,10 +1,13 @@
-# Manifold Mixup
+# Manifold Mixup V2
 
-Unofficial implementation of [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf) (Proceedings of ICML 19) for [fast.ai V1](https://docs.fast.ai/index.html) based on [Shivam Saboo](https://github.com/shivamsaboo17)'s [pytorch implementation](https://github.com/shivamsaboo17/ManifoldMixup) of manifold mixup, fastai's input mixup [implementation](https://docs.fast.ai/callbacks.mixup.html) plus some personnal improvements/variants.
+Unofficial implementation of [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf) (Proceedings of ICML 19) for [fast.ai V2](http://dev.fast.ai/) based on [Shivam Saboo](https://github.com/shivamsaboo17)'s [pytorch implementation](https://github.com/shivamsaboo17/ManifoldMixup) of manifold mixup, fastai's input mixup [implementation](https://docs.fast.ai/callbacks.mixup.html) plus some personnal improvements/variants.
 
 This package provides two additional methods to the fastai learner :
 - `.manifold_mixup()` which implements [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf)
 - `.output_mixup()` which implements a variant that does the mixup on the last viable layer only (this was shown to be more performant on a [benchmark](https://forums.fast.ai/t/mixup-data-augmentation/22764/72) and an independant [blogpost](https://medium.com/analytics-vidhya/better-result-with-mixup-at-final-layer-e9ba3a4a0c41))
+
+**Warning:** As fastai V2 is still in its alpha stage, this code might become invalid due to internal changes.
+If you notice any error of this kind, please report it, we should be able to fix it within 24 hours.
 
 ## Usage
 
@@ -15,13 +18,12 @@ learner = Learner(data, model).manifold_mixup()
 learner.fit(8)
 ```
 
-The `manifold_mixup` method takes four parameters :
+The `manifold_mixup` method takes three parameters :
 - `alpha=0.4` parameter of the beta law used for sampling the interpolation weight
 - `use_input_mixup=True` do you want to apply mixup to the inputs
 - `module_list=None` can be used to pass an explicit list of target modules
-- `stack_y=True` do you want to perform the combinaison after the evaluation of the loss function (good for classification) or directly on the raw targets (good for regression)
 
-The `output_mixup` variant takes only the `alpha` and `stack_y` parameters.
+The `output_mixup` variant takes only the `alpha` parameters.
 
 ## Modules
 
@@ -46,8 +48,5 @@ While this implementation is equiped to work around the problem for U-Net and Re
 In which case, the best way to apply manifold mixup would be to manually select the modules to be instrumented.
 
 ## Todo
-
-This repository will be updated to [fast.ai V2](http://dev.fast.ai/) once it gets out of alpha stage.
-In the meantime, I might create a dedicated branch.
 
 *For more unofficial fastai extensions, see the [Fastai Extensions Repository](https://github.com/nestordemeure/fastai-extensions-repository).*

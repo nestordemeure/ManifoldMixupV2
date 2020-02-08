@@ -172,15 +172,32 @@ class ManifoldMixUp(Callback):
         "restores the original loss function"
         if self.stack_y: self.learn.loss_func = self.old_lf
 
+@delegates(ManifoldMixUp.__init__)
+@patch
+def manifold_mixup(self:Learner, **kwargs):
+    """
+    Adds manifold-mixup http://proceedings.mlr.press/v97/verma19a/verma19a.pdf to `learn`.
+
+    `alpha` is the parameter for the beta law.
+
+    If `use_input_mixup` is set to True, mixup might also be applied to the inputs.
+
+    The algorithm tries to establish a sensible list of modules on which to apply mixup:
+    - it uses a user provided `module_list` if possible
+    - otherwise it uses only the modules wrapped with `ManifoldMixupModule`
+    - if none are found, it defaults to modules with `Block` in their name (targetting mostly resblocks)
+    - finaly, if needed, it defaults to all modules that are not included in the `non_mixable_module_types` list
+    """
+    self.add_cbs([ManifoldMixUp(**kwargs)])
+    return self
+
 #------------------------------------------------------------------------------
 # Output Mixup
 
 class OutputMixUp(ManifoldMixUp):
     "Callback that mixes a random inner layer and the target."
     def __init__(self, alpha:float=0.4):
-        """
-        `alpha` is the parameter for the beta law.
-        """
+        "`alpha` is the parameter for the beta law."
         self.distrib = Beta(tensor(alpha), tensor(alpha))
         self.use_input_mixup = False
         self.module_list = None
@@ -189,3 +206,17 @@ class OutputMixUp(ManifoldMixUp):
         "lists the modules that can be used for output mixup"
         if self.module_list is None: self.module_list = [_get_output_module(self.learn.model)]
         super().begin_fit()
+
+@delegates(OutputMixUp.__init__)
+@patch
+def output_mixup(self:Learner, **kwargs):
+    """
+    Adds a variant of manifold-mixup, that is only applied to the last viable module, to `learn`.
+
+    `alpha` is the parameter for the beta law.
+
+    If `stack_y` is set to false, the target outputs will be directly linearly combined (good for regression).
+    Otherwise they will be stacked and forwarded to MixUpLoss which works under the hypothesis that the output is a long and performs the combinaison after having evaluated the loss (good for classification).
+    """
+    self.add_cbs([OutputMixUp(**kwargs)])
+    return self
