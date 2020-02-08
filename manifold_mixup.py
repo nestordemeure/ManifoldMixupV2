@@ -1,5 +1,5 @@
 # Manifold Mixup
-# Implements a fastai-V2 callback for the Manifold Mixup training method.
+# Implements a fastai-V2 callback for the Manifold Mixup and Output Mixup training methods.
 # source: https://github.com/nestordemeure/ManifoldMixup TODO update this link
 # reference: http://proceedings.mlr.press/v97/verma19a/verma19a.pdf
 
