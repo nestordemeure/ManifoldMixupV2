@@ -192,12 +192,34 @@ class ManifoldMixupCallback(LearnerCallback):
         if self.stack_y: self.learn.loss_func = self.learn.loss_func.get_old()
 
 def manifold_mixup(learn:Learner, alpha:float=0.4, use_input_mixup:bool=True, module_list:Collection=None, stack_y:bool=True) -> Learner:
-    "Adds manifold-mixup http://proceedings.mlr.press/v97/verma19a/verma19a.pdf to `learn`."
+    """
+    Adds manifold-mixup http://proceedings.mlr.press/v97/verma19a/verma19a.pdf to `learn`.
+
+    `alpha` is the parameter for the beta law.
+
+    If `use_input_mixup` is set to True, mixup might also be applied to the inputs.
+
+    If `stack_y` is set to false, the target outputs will be directly linearly combined (good for regression).
+    Otherwise they will be stacked and forwarded to MixUpLoss which works under the hypothesis that the output is a long and performs the combinaison after having evaluated the loss (good for classification).
+
+    The algorithm tries to establish a sensible list of modules on which to apply mixup:
+    - it uses a user provided `module_list` if possible
+    - otherwise it uses only the modules wrapped with `ManifoldMixupModule`
+    - if none are found, it defaults to modules with `Block` in their name (targetting mostly resblocks)
+    - finaly, if needed, it defaults to all modules that are not included in the `non_mixable_module_types` list
+    """
     learn.callback_fns.append(partial(ManifoldMixupCallback, alpha=alpha, use_input_mixup=use_input_mixup, module_list=module_list, stack_y=stack_y))
     return learn
 
 def output_mixup(learn:Learner, alpha:float=0.4, stack_y:bool=True) -> Learner:
-    "Adds a variant of manifold-mixup, that is only applied to the last viable module, to `learn`."
+    """
+    Adds a variant of manifold-mixup, that is only applied to the last viable module, to `learn`.
+
+    `alpha` is the parameter for the beta law.
+
+    If `stack_y` is set to false, the target outputs will be directly linearly combined (good for regression).
+    Otherwise they will be stacked and forwarded to MixUpLoss which works under the hypothesis that the output is a long and performs the combinaison after having evaluated the loss (good for classification).
+    """
     module_list = [_get_output_module(learn.model)]
     learn.callback_fns.append(partial(ManifoldMixupCallback, alpha=alpha, use_input_mixup=False, module_list=module_list, stack_y=stack_y))
     return learn
