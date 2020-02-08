@@ -1,18 +1,18 @@
 # Manifold Mixup V2
 
-Unofficial implementation of [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf) (Proceedings of ICML 19) for [fast.ai V2](http://dev.fast.ai/) based on [Shivam Saboo](https://github.com/shivamsaboo17)'s [pytorch implementation](https://github.com/shivamsaboo17/ManifoldMixup) of manifold mixup, fastai's input mixup [implementation](https://docs.fast.ai/callbacks.mixup.html) plus some personnal improvements/variants.
+Unofficial implementation of [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf) (Proceedings of ICML 19) for [fast.ai V2](http://dev.fast.ai/) based on [Shivam Saboo](https://github.com/shivamsaboo17)'s [pytorch implementation](https://github.com/shivamsaboo17/ManifoldMixup) of manifold mixup, fastai's input mixup [implementation](https://dev.fast.ai/callback.mixup) plus some personnal improvements/variants.
 
 This package provides two additional callbacks to the fastai learner :
 - `ManifoldMixUp` which implements [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf)
 - `OutputMixUp` which implements a variant that does the mixup on the last viable layer only (this was shown to be more performant on a [benchmark](https://forums.fast.ai/t/mixup-data-augmentation/22764/72) and an independant [blogpost](https://medium.com/analytics-vidhya/better-result-with-mixup-at-final-layer-e9ba3a4a0c41))
 
 **Warning:** As fastai V2 is still in its alpha stage, this code might become invalid due to internal changes.
-If you notice any error of this kind, please report it, we should be able to fix it within 24 hours.
+If you notice any error of this kind, please report it. We should be able to fix it within 24 hours.
 
 ## Usage
 
 To use manifold mixup, you can either pass the corresponding callback with the `cbs` argument of your learner 
-or just call one of the `manifold_mixup` and `output_mixup` methods on your learner (for a minimal demonstration, see the [Demo notebook](https://github.com/nestordemeure/ManifoldMixup/blob/master/Demo.ipynb)):
+or just call one of the `manifold_mixup` and `output_mixup` methods on your learner (for a minimal demonstration, see the [Demo notebook](https://github.com/nestordemeure/ManifoldMixup/blob/V2/Demo.ipynb)):
 
 ```python
 learner = Learner(data, model).manifold_mixup()

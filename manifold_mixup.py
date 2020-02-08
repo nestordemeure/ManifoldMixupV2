@@ -1,6 +1,6 @@
 # Manifold Mixup
 # Implements a fastai-V2 callback for the Manifold Mixup and Output Mixup training methods.
-# source: https://github.com/nestordemeure/ManifoldMixup TODO update this link
+# source: https://github.com/nestordemeure/ManifoldMixup/blob/V2/manifold_mixup.py
 # reference: http://proceedings.mlr.press/v97/verma19a/verma19a.pdf
 
 from torch.distributions.beta import Beta
