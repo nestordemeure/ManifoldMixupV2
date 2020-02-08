@@ -29,13 +29,13 @@ learn = Learner(databunch, model, metrics=accuracy, cbs=MixUp())
 learn.fit(8)
 learn.recorder.plot_loss()
 
-# TODO manifold mixup
+# manifold mixup
 model = simple_cnn()
 learn = Learner(databunch, model, metrics=accuracy, cbs=ManifoldMixUp())
 learn.fit(8)
 learn.recorder.plot_loss()
 
-# TODO output mixup
+# output mixup
 model = simple_cnn()
 learn = Learner(databunch, model, metrics=accuracy, cbs=OutputMixUp())
 learn.fit(8)
