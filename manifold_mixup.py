@@ -1,5 +1,5 @@
 # Manifold Mixup
-# Implements a fastai callback for the Manifold Mixup training method.
+# Implements a fastai-V2 callback for the Manifold Mixup training method.
 # source: https://github.com/nestordemeure/ManifoldMixup TODO update this link
 # reference: http://proceedings.mlr.press/v97/verma19a/verma19a.pdf
 
@@ -7,6 +7,7 @@ from torch.distributions.beta import Beta
 from fastai2.basics import *
 from fastai2.callback.mixup import reduce_loss
 from fastai2.text.models import AWD_LSTM
+from fastai2.vision.models.unet import UnetBlock
 
 __all__ = ['ManifoldMixUp', 'OutputMixUp']
 
@@ -53,12 +54,12 @@ def _get_mixup_module_list(model):
     if len(user_wrapped_modules) != 0:
         print(f'Manifold mixup: ManifoldMixupModule modules detected, {len(user_wrapped_modules)} modules will be used for mixup.')
         return user_wrapped_modules
-    # TODO checks for UnetBlock to only instrument the decoder part of a U-Net
+    # checks for UnetBlock to only instrument the decoder part of a U-Net
     # following the recommendations of: `Prostate Cancer Segmentation using Manifold Mixup U-Net`
-    #ublock_modules = list(filter(lambda module: isinstance(module, UnetBlock), module_list))
-    #if len(ublock_modules) != 0:
-    #    print(f'Manifold mixup: U-Net structure detected, {len(ublock_modules)} modules will be used for mixup.')
-    #    return ublock_modules
+    ublock_modules = list(filter(lambda module: isinstance(module, UnetBlock), module_list))
+    if len(ublock_modules) != 0:
+        print(f'Manifold mixup: U-Net structure detected, {len(ublock_modules)} modules will be used for mixup.')
+        return ublock_modules
     # checks for blocks
     block_modules = list(filter(_is_block_module, module_list))
     if len(block_modules) != 0:
