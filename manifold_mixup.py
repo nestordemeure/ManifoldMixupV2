@@ -101,6 +101,7 @@ class ManifoldMixUp(Callback):
         self.distrib = Beta(tensor(alpha), tensor(alpha))
         self.use_input_mixup = use_input_mixup
         self.module_list = module_list
+        self._is_input_mixup = True
 
     def begin_fit(self):
         "replace the loss function with one that is adapted to mixup"
