@@ -1,10 +1,12 @@
 # Manifold Mixup
 
-Unofficial implementation of [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf) (Proceedings of ICML 19) for [fast.ai V1](https://docs.fast.ai/index.html) based on [Shivam Saboo](https://github.com/shivamsaboo17)'s [pytorch implementation](https://github.com/shivamsaboo17/ManifoldMixup) of manifold mixup, fastai's input mixup [implementation](https://docs.fast.ai/callbacks.mixup.html) plus some personnal improvements/variants.
+Unofficial implementation of [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf) (Proceedings of ICML 19) for [fastai V1](https://docs.fast.ai/index.html) based on [Shivam Saboo](https://github.com/shivamsaboo17)'s [pytorch implementation](https://github.com/shivamsaboo17/ManifoldMixup) of manifold mixup, fastai's input mixup [implementation](https://docs.fast.ai/callbacks.mixup.html) plus some personnal improvements/variants.
 
 This package provides two additional methods to the fastai learner :
 - `.manifold_mixup()` which implements [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf)
 - `.output_mixup()` which implements a variant that does the mixup on the last viable layer only (this was shown to be more performant on a [benchmark](https://forums.fast.ai/t/mixup-data-augmentation/22764/72) and an independant [blogpost](https://medium.com/analytics-vidhya/better-result-with-mixup-at-final-layer-e9ba3a4a0c41))
+
+**Note:** For a [fastai V2](http://dev.fast.ai/) compatible version, see the [V2 branch](https://github.com/nestordemeure/ManifoldMixup/tree/V2).
 
 ## Usage
 
@@ -44,10 +46,5 @@ This is due to the mixed-up values becoming incoherent with the output of the sk
 
 While this implementation is equiped to work around the problem for U-Net and ResNet like architectures, you might run into problems (negligeable improvements over the baseline) with other network structures.
 In which case, the best way to apply manifold mixup would be to manually select the modules to be instrumented.
-
-## Todo
-
-This repository will be updated to [fast.ai V2](http://dev.fast.ai/) once it gets out of alpha stage.
-In the meantime, I might create a dedicated branch.
 
 *For more unofficial fastai extensions, see the [Fastai Extensions Repository](https://github.com/nestordemeure/fastai-extensions-repository).*
