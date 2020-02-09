@@ -202,6 +202,7 @@ class OutputMixUp(ManifoldMixUp):
         self.distrib = Beta(tensor(alpha), tensor(alpha))
         self.use_input_mixup = False
         self.module_list = None
+        self._is_input_mixup = True
 
     def begin_fit(self):
         "lists the modules that can be used for output mixup"
