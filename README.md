@@ -48,6 +48,4 @@ This is due to the mixed-up values becoming incoherent with the output of the sk
 While this implementation is equiped to work around the problem for U-Net and ResNet like architectures, you might run into problems (negligeable improvements over the baseline) with other network structures.
 In which case, the best way to apply manifold mixup would be to manually select the modules to be instrumented.
 
-
-
 *For more unofficial fastai extensions, see the [Fastai Extensions Repository](https://github.com/nestordemeure/fastai-extensions-repository).*

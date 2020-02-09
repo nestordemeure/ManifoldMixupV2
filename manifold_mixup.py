@@ -9,7 +9,7 @@ from fastai2.callback.mixup import reduce_loss
 from fastai2.text.models import AWD_LSTM
 from fastai2.vision.models.unet import UnetBlock
 
-__all__ = ['ManifoldMixUp', 'OutputMixUp']
+__all__ = ['ManifoldMixupModule', 'ManifoldMixUp', 'OutputMixUp', 'non_mixable_module_types']
 
 #------------------------------------------------------------------------------
 # Module selection
@@ -20,7 +20,7 @@ class ManifoldMixupModule(Module):
     Note that this, by itself, has no effect and is just used to locate modules of interest when using the ManifoldMixupCallback.
     """
     def __init__(self, module):
-        super(ManifoldMixupModule, self).__init__()
+        super().__init__()
         self.module = module
 
     def forward(self, x, *args, **kwargs):
@@ -101,7 +101,7 @@ class ManifoldMixUp(Callback):
         self.distrib = Beta(tensor(alpha), tensor(alpha))
         self.use_input_mixup = use_input_mixup
         self.module_list = module_list
-        self._is_input_mixup = True
+        self.mixup_hook_handle = None
 
     def begin_fit(self):
         "replace the loss function with one that is adapted to mixup"
@@ -125,13 +125,11 @@ class ManifoldMixUp(Callback):
         minimum_module_index = -1 if self.use_input_mixup else 0
         k = np.random.randint(minimum_module_index, len(self.module_list))
         if k == -1: # applies mixup to an input
-            self._is_input_mixup = True
             xb1 = tuple(L(self.xb).itemgot(self.shuffle))
             nx_dims = len(self.x.size())
             self.learn.xb = tuple(L(xb1,self.xb).map_zip(torch.lerp,weight=unsqueeze(self.lam, n=nx_dims-1)))
         else: # applies mixup to an inner module
-            self._is_input_mixup = False
-            self._mixup_hook = self.module_list[k].register_forward_hook(self.hook_mixup)
+            self.mixup_hook_handle = self.module_list[k].register_forward_hook(self.hook_mixup)
         # replaces y with a linear combinaison of y and yb1
         self.yb1 = tuple(L(self.yb).itemgot(self.shuffle))
         if not self.stack_y:
@@ -166,8 +164,9 @@ class ManifoldMixUp(Callback):
 
     def after_batch(self):
         "Removes hook if needed"
-        if self._is_input_mixup: return
-        self._mixup_hook.remove()
+        if self.mixup_hook_handle is not None:
+            self.mixup_hook_handle.remove()
+            self.mixup_hook_handle = None
 
     def after_fit(self):
         "restores the original loss function"
@@ -199,10 +198,7 @@ class OutputMixUp(ManifoldMixUp):
     "Callback that mixes a random inner layer and the target."
     def __init__(self, alpha:float=0.4):
         "`alpha` is the parameter for the beta law."
-        self.distrib = Beta(tensor(alpha), tensor(alpha))
-        self.use_input_mixup = False
-        self.module_list = None
-        self._is_input_mixup = True
+        super().__init__(alpha=alpha, use_input_mixup=False, module_list=None)
 
     def begin_fit(self):
         "lists the modules that can be used for output mixup"

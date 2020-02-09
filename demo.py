@@ -32,7 +32,7 @@ learn.recorder.plot_loss()
 # manifold mixup
 model = simple_cnn()
 #learn = Learner(databunch, model, metrics=accuracy, cbs=ManifoldMixUp())
-learn = Learner(databunch, model, metrics=accuracy).manifold_mixup()
+learn = Learner(databunch, model, metrics=accuracy).manifold_mixup(alpha=1.)
 learn.fit(8)
 learn.recorder.plot_loss()
 
