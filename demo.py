@@ -29,4 +29,3 @@ model = simple_cnn((3,16,16,2))
 learn = Learner(data, model, metrics=[accuracy]).output_mixup()
 learn.fit(8)
 learn.recorder.plot_losses()
-
