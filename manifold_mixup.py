@@ -9,7 +9,7 @@ from fastai2.callback.mixup import reduce_loss
 from fastai2.text.models import AWD_LSTM
 from fastai2.vision.models.unet import UnetBlock
 
-__all__ = ['ManifoldMixupModule', 'ManifoldMixUp', 'OutputMixUp', 'non_mixable_module_types']
+__all__ = ['ManifoldMixupModule', 'ManifoldMixUp', 'OutputMixUp', 'non_mixable_module_types', 'output_mixup', 'manifold_mixup']
 
 #------------------------------------------------------------------------------
 # Module selection
