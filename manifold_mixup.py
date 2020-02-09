@@ -3,7 +3,6 @@
 # source: https://github.com/nestordemeure/ManifoldMixup
 # reference: http://proceedings.mlr.press/v97/verma19a/verma19a.pdf
 
-from torch.distributions.beta import Beta
 from fastai.torch_core import *
 from fastai.callback import *
 from fastai.basic_train import Learner, LearnerCallback
@@ -121,7 +120,7 @@ class ManifoldMixupCallback(LearnerCallback):
         """
         super().__init__(learn)
         # parameters describing the mixup
-        self.distrib = Beta(tensor(alpha), tensor(alpha))
+        self.alpha = alpha
         self.use_input_mixup = use_input_mixup
         self.module_list = _get_mixup_module_list(learn.model, module_list)
         self.stack_y = stack_y
