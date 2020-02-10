@@ -9,7 +9,7 @@ from fastai2.callback.mixup import reduce_loss
 from fastai2.text.models import AWD_LSTM
 from fastai2.vision.models.unet import UnetBlock
 
-__all__ = ['ManifoldMixupModule', 'ManifoldMixup', 'OutputMixup', 'non_mixable_module_types']
+__all__ = ['ManifoldMixupModule', 'ManifoldMixup', 'OutputMixup', 'OutputLossMixup', 'non_mixable_module_types']
 
 #------------------------------------------------------------------------------
 # Module selection
@@ -197,6 +197,7 @@ class OutputLossMixup(Callback):
         """
         `alpha` is the parameter for the beta law.
         """
+        alpha = float(alpha)
         self.distrib = Beta(tensor(alpha), tensor(alpha))
 
     def begin_fit(self):
@@ -209,46 +210,23 @@ class OutputLossMixup(Callback):
         else:
             throw("You cannot use this implementation of output mixup for non classification problems.")
 
-    def begin_batch(self):
-        "mixes inputs and stores mixed output and lambda"
-        self.shuffle = torch.randperm(self.y.size(0)).to(self.x.device)
-        # lambda used for linear combinaison
-        lam = self.distrib.sample((self.y.size(0),)).squeeze().to(self.x.device)
-        lam = torch.stack([lam, 1-lam], 1)
-        self.lam = lam.max(1)[0]
-        # selects a module to apply mixup
-        minimum_module_index = -1 if self.use_input_mixup else 0
-        k = np.random.randint(minimum_module_index, len(self.module_list))
-        if k == -1: # applies mixup to an input
-            xb1 = tuple(L(self.xb).itemgot(self.shuffle))
-            nx_dims = len(self.x.size())
-            self.learn.xb = tuple(L(xb1,self.xb).map_zip(torch.lerp,weight=unsqueeze(self.lam, n=nx_dims-1)))
-        else: # applies mixup to an inner module
-            self.mixup_hook_handle = self.module_list[k].register_forward_hook(self.hook_mixup)
-        # replaces y with a linear combinaison of y and yb1
-        self.yb1 = tuple(L(self.yb).itemgot(self.shuffle))
-        if not self.stack_y:
-            ny_dims = len(self.y.size())
-            self.learn.yb = tuple(L(self.yb1,self.yb).map_zip(torch.lerp,weight=unsqueeze(self.lam, n=ny_dims-1)))
-        # flags used to control that everything ran properly
-        self.mixup_has_been_applied = False
-
-    def hook_mixup(self, module, input, output):
-        "Interupt one run to use its intermediate results with a second model call."
-        output_dims = len(output.size())
-        output = torch.lerp(output[self.shuffle], output, weight=unsqueeze(self.lam, n=output_dims-1))
-
     def lf(self, pred, *yb):
         "loss function adapted to mixup"
         if not self.training: return self.old_lf(pred, *yb)
         with NoneReduce(self.old_lf) as lf:
-            shuffle = torch.randperm(self.y.size(0)).to(self.x.device)
+            # shuffles used to match batch elements
+            shuffle = torch.randperm(len(*yb)).to(pred.device)
             # lambda used for linear combinaison
-            lam = self.distrib.sample((self.y.size(0),)).squeeze().to(self.x.device)
+            lam = self.distrib.sample((len(*yb),)).squeeze().to(pred.device)
             lam = torch.stack([lam, 1-lam], 1)
             lam = lam.max(1)[0]
-            
-            loss = torch.lerp(lf(pred,*self.yb1), lf(pred,*yb), self.lam)
+            # shuffled prediction
+            pred_dims = len(pred.size())
+            pred = torch.lerp(pred[shuffle], pred, weight=unsqueeze(lam, n=pred_dims-1))
+            # shuffled targets
+            yb1 = tuple(L(yb).itemgot(shuffle))
+            # final loss
+            loss = torch.lerp(lf(pred,*yb1), lf(pred,*yb), lam)
         return reduce_loss(loss, getattr(self.old_lf, 'reduction', 'mean'))
 
     def after_fit(self):
