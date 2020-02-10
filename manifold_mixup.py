@@ -105,6 +105,7 @@ class ManifoldMixUp(Callback):
 
     def begin_fit(self):
         "replace the loss function with one that is adapted to mixup"
+        self.warning_raised = False
         # lists the modules that can be used for mixup
         if self.module_list is None:
             self.module_list = _get_mixup_module_list(self.learn.model)
@@ -137,7 +138,6 @@ class ManifoldMixUp(Callback):
             self.learn.yb = tuple(L(self.yb1,self.yb).map_zip(torch.lerp,weight=unsqueeze(self.lam, n=ny_dims-1)))
         # flags used to control that everything ran properly
         self.mixup_has_been_applied = False
-        self.warning_raised = False
 
     def hook_mixup(self, module, input, output):
         "Interupt one run to use its intermediate results with a second model call."
