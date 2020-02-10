@@ -98,6 +98,7 @@ class ManifoldMixup(Callback):
         - if none are found, it defaults to modules with `Block` in their name (targetting mostly resblocks)
         - finaly, if needed, it defaults to all modules that are not included in the `non_mixable_module_types` list
         """
+        alpha = float(alpha) # insures that the input is not an int as that crashes Beta
         self.distrib = Beta(tensor(alpha), tensor(alpha))
         self.use_input_mixup = use_input_mixup
         self.module_list = module_list
@@ -185,5 +186,75 @@ class OutputMixup(ManifoldMixup):
         "lists the modules that can be used for output mixup"
         if self.module_list is None: self.module_list = [_get_output_module(self.learn.model)]
         super().begin_fit()
+        
+#------------------------------------------------------------------------------
+# Output Loss Mixup
 
-# output_mixup has troubles with layers reused (cf efficientnet) : putting all of the implementation in the loss function wou
+class OutputLossMixup(Callback):
+    "Callback that mixes the last layer and the target."
+    run_after,run_valid = [Normalize],False
+    def __init__(self, alpha:float=0.4):
+        """
+        `alpha` is the parameter for the beta law.
+        """
+        self.distrib = Beta(tensor(alpha), tensor(alpha))
+
+    def begin_fit(self):
+        "replace the loss function with one that is adapted to mixup"
+        # if the ouput is integer based (classification), we stack the losses otherwise we combine them
+        self.stack_y = getattr(self.learn.loss_func, 'y_int', False)
+        if self.stack_y:
+            self.old_lf = self.learn.loss_func
+            self.learn.loss_func = self.lf
+        else:
+            throw("You cannot use this implementation of output mixup for non classification problems.")
+
+    def begin_batch(self):
+        "mixes inputs and stores mixed output and lambda"
+        self.shuffle = torch.randperm(self.y.size(0)).to(self.x.device)
+        # lambda used for linear combinaison
+        lam = self.distrib.sample((self.y.size(0),)).squeeze().to(self.x.device)
+        lam = torch.stack([lam, 1-lam], 1)
+        self.lam = lam.max(1)[0]
+        # selects a module to apply mixup
+        minimum_module_index = -1 if self.use_input_mixup else 0
+        k = np.random.randint(minimum_module_index, len(self.module_list))
+        if k == -1: # applies mixup to an input
+            xb1 = tuple(L(self.xb).itemgot(self.shuffle))
+            nx_dims = len(self.x.size())
+            self.learn.xb = tuple(L(xb1,self.xb).map_zip(torch.lerp,weight=unsqueeze(self.lam, n=nx_dims-1)))
+        else: # applies mixup to an inner module
+            self.mixup_hook_handle = self.module_list[k].register_forward_hook(self.hook_mixup)
+        # replaces y with a linear combinaison of y and yb1
+        self.yb1 = tuple(L(self.yb).itemgot(self.shuffle))
+        if not self.stack_y:
+            ny_dims = len(self.y.size())
+            self.learn.yb = tuple(L(self.yb1,self.yb).map_zip(torch.lerp,weight=unsqueeze(self.lam, n=ny_dims-1)))
+        # flags used to control that everything ran properly
+        self.mixup_has_been_applied = False
+
+    def hook_mixup(self, module, input, output):
+        "Interupt one run to use its intermediate results with a second model call."
+        output_dims = len(output.size())
+        output = torch.lerp(output[self.shuffle], output, weight=unsqueeze(self.lam, n=output_dims-1))
+
+    def lf(self, pred, *yb):
+        "loss function adapted to mixup"
+        if not self.training: return self.old_lf(pred, *yb)
+        with NoneReduce(self.old_lf) as lf:
+            shuffle = torch.randperm(self.y.size(0)).to(self.x.device)
+            # lambda used for linear combinaison
+            lam = self.distrib.sample((self.y.size(0),)).squeeze().to(self.x.device)
+            lam = torch.stack([lam, 1-lam], 1)
+            lam = lam.max(1)[0]
+            
+            loss = torch.lerp(lf(pred,*self.yb1), lf(pred,*yb), self.lam)
+        return reduce_loss(loss, getattr(self.old_lf, 'reduction', 'mean'))
+
+    def after_fit(self):
+        "restores the original loss function"
+        self.learn.loss_func = self.old_lf
+
+
+
+
