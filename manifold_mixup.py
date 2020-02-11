@@ -10,7 +10,7 @@ from fastai.text.models import AWD_LSTM
 from fastai.vision.models import UnetBlock
 from fastai.callbacks.mixup import MixUpLoss
 
-__all__ = ["ManifoldMixupModule", "ManifoldMixupCallback", "non_mixable_module_types", "manifold_mixup", "output_mixup"]
+__all__ = ["ManifoldMixupModule", "non_mixable_module_types", "ManifoldMixupCallback", "manifold_mixup", "OutputMixupCallback", "output_mixup"]
 
 #------------------------------------------------------------------------------
 # Module selection
@@ -41,11 +41,6 @@ def _is_mixable(m):
 def _is_block_module(m):
     "Checks wether a module is a Block (typically a kind of resBlock)"
     return "block" in str(type(m)).lower()
-
-def is_suitable_output_module(m):
-    "Returns true if the module is a suitable output module"
-    moduleName = str(type(m)).lower()
-    return not (("loss" in moduleName) or ("max" in moduleName))
 
 def _get_mixup_module_list(model, module_list=None):
     "returns all the modules that can be used for mixup"
@@ -78,13 +73,6 @@ def _get_mixup_module_list(model, module_list=None):
     # no module has been found
     raise ValueError('No eligible layer found for mixup. Try wrapping candidate modules with ManifoldMixupModule or passing an explicit list of targets with module_list')
 
-def _get_output_module(model):
-    "returns the last module suitable for output mixup (neither loss nor softmax)"
-    module_list = list(model.modules())
-    output_module = next((m for m in reversed(module_list) if is_suitable_output_module(m)), None)
-    if output_module is not None: return output_module
-    raise ValueError('No eligible layer found for mixup.')
-
 #------------------------------------------------------------------------------
 # Manifold Mixup
 
@@ -101,7 +89,7 @@ def _adapt_dim(t, t_target):
     return t
 
 class ManifoldMixupCallback(LearnerCallback):
-    "Callback that creates the mixed-up input and target."
+    "Callback that applies mixup to a random inner layer and the target."
     def __init__(self, learn:Learner, alpha:float=0.4, use_input_mixup:bool=True,
                  module_list:Collection=None, stack_y:bool=True):
         """
@@ -120,7 +108,7 @@ class ManifoldMixupCallback(LearnerCallback):
         """
         super().__init__(learn)
         # parameters describing the mixup
-        self.alpha = alpha
+        self.alpha = float(alpha)
         self.use_input_mixup = use_input_mixup
         self.module_list = _get_mixup_module_list(learn.model, module_list)
         self.stack_y = stack_y
@@ -167,7 +155,7 @@ class ManifoldMixupCallback(LearnerCallback):
         return {'last_input': last_input, 'last_target': new_target}
 
     def hook_mixup(self, module, input, output):
-        "Interupt one run to use its intermediate results with a second model call."
+        "Applies mixup to the output of the module."
         if not self._mixup_is_done: # performs mixup
             lambd = _adapt_dim(self._lambd, output)
             output = output * lambd + output[self._shuffled_index] * (1 - lambd)
@@ -211,19 +199,64 @@ def manifold_mixup(learn:Learner, alpha:float=0.4, use_input_mixup:bool=True, mo
     learn.callback_fns.append(partial(ManifoldMixupCallback, alpha=alpha, use_input_mixup=use_input_mixup, module_list=module_list, stack_y=stack_y))
     return learn
 
-def output_mixup(learn:Learner, alpha:float=0.4, stack_y:bool=True) -> Learner:
-    """
-    Adds a variant of manifold-mixup, that is only applied to the last viable module, to `learn`.
-
-    `alpha` is the parameter for the beta law.
-
-    If `stack_y` is set to false, the target outputs will be directly linearly combined (good for regression).
-    Otherwise they will be stacked and forwarded to MixUpLoss which works under the hypothesis that the output is a long and performs the combinaison after having evaluated the loss (good for classification).
-    """
-    module_list = [_get_output_module(learn.model)]
-    learn.callback_fns.append(partial(ManifoldMixupCallback, alpha=alpha, use_input_mixup=False, module_list=module_list, stack_y=stack_y))
-    return learn
-
 # adds manifold_mixup to Learner's available methods
 Learner.manifold_mixup = manifold_mixup
+
+#------------------------------------------------------------------------------
+# Output Mixup
+
+class OutputMixupCallback(LearnerCallback):
+    "Callback that applies mixup to the output of the last layer and the target."
+    def __init__(self, learn:Learner, alpha:float=0.4):
+        """
+        `alpha` is the parameter for the beta law.
+        """
+        super().__init__(learn)
+        # parameters describing the mixup
+        self.alpha = float(alpha)
+        # temporary variables storing intermediate states
+        self._lambd = None
+        self._shuffled_index = None
+
+    def on_train_begin(self, **kwargs):
+        "Injects MixupLoss on top of the current loss function."
+        self.learn.loss_func = MixUpLoss(self.learn.loss_func)
+
+    def on_batch_begin(self, last_target, train, **kwargs):
+        "Draws the parameter of the mixup and prepare the target for the loss function."
+        if not train: return
+        # creates tensor filled with the random ponderation drawn from a beta distribution of parameter alpha
+        lambd = np.random.beta(self.alpha, self.alpha, last_target.size(0))
+        lambd = np.concatenate([lambd[:,None], 1-lambd[:,None]], 1).max(1)
+        self._lambd = torch.from_numpy(lambd).float().to(last_target.device)
+        # decides on a way to shuffle inputs
+        self._shuffled_index = torch.randperm(last_target.size(0)).to(last_target.device)
+        # process the target
+        output_lambd = _adapt_dim(self._lambd, last_target)
+        last_target2 = last_target[self._shuffled_index]
+        # stores the target but also a properly shuffled copy and the lambda to combine them
+        new_target = torch.cat([last_target[:,None].float(), last_target2[:,None].float(), output_lambd[:,None].float()], 1)
+        return {'last_target': new_target}
+
+    def on_loss_begin(self, train, last_output, **kwargs):
+        "Applies mixup to the output of the last layer."
+        if (not train): return
+        lambd = _adapt_dim(self._lambd, last_output)
+        last_output = last_output * lambd + last_output[self._shuffled_index] * (1 - lambd)
+        return {'last_output': last_output}
+
+    def on_train_end(self, **kwargs):
+        "Restores the original loss function"
+        self.learn.loss_func = self.learn.loss_func.get_old()
+
+def output_mixup(learn:Learner, alpha:float=0.4) -> Learner:
+    """
+    Adds a variant of manifold-mixup, that is only applied to the output of the last layer, to `learn`.
+
+    `alpha` is the parameter for the beta law.
+    """
+    learn.callback_fns.append(partial(OutputMixupCallback, alpha=alpha))
+    return learn
+
+# adds output_mixup to Learner's available methods
 Learner.output_mixup = output_mixup
