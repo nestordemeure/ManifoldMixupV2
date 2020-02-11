@@ -9,7 +9,7 @@ from fastai2.callback.mixup import reduce_loss
 from fastai2.text.models import AWD_LSTM
 from fastai2.vision.models.unet import UnetBlock
 
-__all__ = ['ManifoldMixupModule', 'ManifoldMixup', 'OutputMixup', 'OutputLossMixup', 'non_mixable_module_types']
+__all__ = ['ManifoldMixupModule', 'ManifoldMixup', 'OutputMixup', 'non_mixable_module_types']
 
 #------------------------------------------------------------------------------
 # Module selection
@@ -41,11 +41,6 @@ def _is_block_module(m):
     "Checks wether a module is a Block (typically a kind of resBlock)"
     return "block" in str(type(m)).lower()
 
-def is_suitable_output_module(m):
-    "Returns true if the module is a suitable output module"
-    moduleName = str(type(m)).lower()
-    return not (("loss" in moduleName) or ("max" in moduleName))
-
 def _get_mixup_module_list(model):
     "returns all the modules that can be used for mixup"
     module_list = list(model.modules())
@@ -73,13 +68,6 @@ def _get_mixup_module_list(model):
     # no module has been found
     raise ValueError('No eligible layer found for mixup. Try wrapping candidate modules with ManifoldMixupModule or passing an explicit list of targets with module_list')
 
-def _get_output_module(model):
-    "returns the last module suitable for output mixup (neither loss nor softmax)"
-    module_list = list(model.modules())
-    output_module = next((m for m in reversed(module_list) if is_suitable_output_module(m)), None)
-    if output_module is not None: return output_module
-    raise ValueError('No eligible layer found for mixup.')
-
 #------------------------------------------------------------------------------
 # Manifold Mixup
 
@@ -98,7 +86,7 @@ class ManifoldMixup(Callback):
         - if none are found, it defaults to modules with `Block` in their name (targetting mostly resblocks)
         - finaly, if needed, it defaults to all modules that are not included in the `non_mixable_module_types` list
         """
-        alpha = float(alpha) # insures that the input is not an int as that crashes Beta
+        alpha = float(alpha) # insures that alpha is a float as an int would crash Beta
         self.distrib = Beta(tensor(alpha), tensor(alpha))
         self.use_input_mixup = use_input_mixup
         self.module_list = module_list
@@ -176,44 +164,39 @@ class ManifoldMixup(Callback):
 #------------------------------------------------------------------------------
 # Output Mixup
 
-class OutputMixup(ManifoldMixup):
-    "Callback that mixes a random inner layer and the target."
-    def __init__(self, alpha:float=0.4):
-        "`alpha` is the parameter for the beta law."
-        super().__init__(alpha=alpha, use_input_mixup=False, module_list=None)
-
-    def begin_fit(self):
-        "lists the modules that can be used for output mixup"
-        if self.module_list is None: self.module_list = [_get_output_module(self.learn.model)]
-        super().begin_fit()
-        
-#------------------------------------------------------------------------------
-# Output Loss Mixup
-
-class OutputLossMixup(Callback):
-    "Callback that mixes the last layer and the target."
+class OutputMixup(Callback):
+    """
+    Callback that mixes the output of the last layer and the target.
+    NOTE: this callback is not suitable for regression problems
+    """
     run_after,run_valid = [Normalize],False
     def __init__(self, alpha:float=0.4):
-        """
-        `alpha` is the parameter for the beta law.
-        """
-        alpha = float(alpha)
+        "`alpha` is the parameter for the beta law."
+        alpha = float(alpha) # insures that alpha is a float as an int would crash Beta
         self.distrib = Beta(tensor(alpha), tensor(alpha))
 
     def begin_fit(self):
-        "replace the loss function with one that is adapted to mixup"
-        # if the ouput is integer based (classification), we stack the losses otherwise we combine them
-        self.stack_y = getattr(self.learn.loss_func, 'y_int', False)
-        if self.stack_y:
-            self.old_lf = self.learn.loss_func
-            self.learn.loss_func = self.lf
+        "Injects the new loss function"
+        if getattr(self.learn.loss_func, 'y_int', False):
+            # classification type of output
+            self.old_loss_func = self.learn.loss_func
+            self.learn.loss_func = self.mixed_loss
+            print(f'Output mixup: the loss function is now properly wrapped.')
         else:
-            throw("You cannot use this implementation of output mixup for non classification problems.")
+            # the output type seem unfit for instrumentation
+            raise Exception("You cannot use output mixup for regression problems.")
 
-    def lf(self, pred, *yb):
-        "loss function adapted to mixup"
-        if not self.training: return self.old_lf(pred, *yb)
-        with NoneReduce(self.old_lf) as lf:
+    def after_fit(self):
+        "Restores the original loss function."
+        self.learn.loss_func = self.old_loss_func
+
+    def mixed_loss(self, pred, *yb):
+        """
+        Loss function that mixes the prediction before computing the loss and weighting it.
+        This requires that the softmax / loss function is done fully inside the loss and not in the network.
+        """
+        if not self.training: return self.old_loss_func(pred, *yb)
+        with NoneReduce(self.old_loss_func) as lf:
             # shuffles used to match batch elements
             shuffle = torch.randperm(len(*yb)).to(pred.device)
             # lambda used for linear combinaison
@@ -222,17 +205,9 @@ class OutputLossMixup(Callback):
             lam = lam.max(1)[0]
             # shuffled prediction
             pred_dims = len(pred.size())
-            pred = torch.lerp(pred[shuffle], pred, weight=unsqueeze(lam, n=pred_dims-1))
+            pred_mixed = torch.lerp(pred[shuffle], pred, weight=unsqueeze(lam, n=pred_dims-1))
             # shuffled targets
-            yb1 = tuple(L(yb).itemgot(shuffle))
+            yb_shuffled = tuple(L(yb).itemgot(shuffle))
             # final loss
-            loss = torch.lerp(lf(pred,*yb1), lf(pred,*yb), lam)
-        return reduce_loss(loss, getattr(self.old_lf, 'reduction', 'mean'))
-
-    def after_fit(self):
-        "restores the original loss function"
-        self.learn.loss_func = self.old_lf
-
-
-
-
+            loss = torch.lerp(lf(pred_mixed,*yb_shuffled), lf(pred_mixed,*yb), lam)
+        return reduce_loss(loss, getattr(self.old_loss_func, 'reduction', 'mean'))
