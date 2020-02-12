@@ -130,9 +130,9 @@ class ManifoldMixupCallback(LearnerCallback):
         # creates tensor filled with the random ponderation drawn from a beta distribution of parameter alpha
         lambd = np.random.beta(self.alpha, self.alpha, last_target.size(0))
         lambd = np.concatenate([lambd[:,None], 1-lambd[:,None]], 1).max(1)
-        self._lambd = torch.from_numpy(lambd).float().to(last_input.device)
+        self._lambd = torch.from_numpy(lambd).float().to(last_target.device)
         # decides on a way to shuffle inputs
-        self._shuffled_index = torch.randperm(last_target.size(0)).to(last_input.device)
+        self._shuffled_index = torch.randperm(last_target.size(0)).to(last_target.device)
         # selects a module to apply mixup
         minimum_module_index = -1 if self.use_input_mixup else 0
         k = np.random.randint(minimum_module_index, len(self.module_list))
