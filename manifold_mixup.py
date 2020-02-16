@@ -8,6 +8,7 @@ from fastai2.basics import *
 from fastai2.callback.mixup import reduce_loss
 from fastai2.text.models import AWD_LSTM
 from fastai2.vision.models.unet import UnetBlock
+from fastai2.tabular.model import TabularModel
 
 __all__ = ['ManifoldMixupModule', 'ManifoldMixup', 'OutputMixup', 'non_mixable_module_types']
 
@@ -49,6 +50,11 @@ def _get_mixup_module_list(model):
     if len(user_wrapped_modules) != 0:
         print(f'Manifold mixup: ManifoldMixupModule modules detected, {len(user_wrapped_modules)} modules will be used for mixup.')
         return user_wrapped_modules
+    # checks for tabular model in which case we get only linear layers
+    if isinstance(model, TabularModel):
+        linear_modules = list(filter(lambda module: isinstance(module, nn.Linear), module_list))
+        print(f'Manifold mixup: TabularModel detected, {len(linear_modules)} modules will be used for mixup.')
+        return linear_modules
     # checks for UnetBlock to only instrument the decoder part of a U-Net
     # following the recommendations of: `Prostate Cancer Segmentation using Manifold Mixup U-Net`
     ublock_modules = list(filter(lambda module: isinstance(module, UnetBlock), module_list))
@@ -106,15 +112,16 @@ class ManifoldMixup(Callback):
 
     def begin_batch(self):
         "mixes inputs and stores mixed output and lambda"
-        self.shuffle = torch.randperm(self.y.size(0)).to(self.x.device)
+        self.shuffle = torch.randperm(self.y.size(0)).to(self.y.device)
         # lambda used for linear combinaison
-        lam = self.distrib.sample((self.y.size(0),)).squeeze().to(self.x.device)
+        lam = self.distrib.sample((self.y.size(0),)).squeeze().to(self.y.device)
         lam = torch.stack([lam, 1-lam], 1)
         self.lam = lam.max(1)[0]
         # selects a module to apply mixup
         minimum_module_index = -1 if self.use_input_mixup else 0
         k = np.random.randint(minimum_module_index, len(self.module_list))
         if k == -1: # applies mixup to an input
+            assert (not isinstance(self.x, tuple)), "Manifold mixup: Your input type does not seem compatible with input mixup, please set `use_input_mixup=False`."
             xb1 = tuple(L(self.xb).itemgot(self.shuffle))
             nx_dims = len(self.x.size())
             self.learn.xb = tuple(L(xb1,self.xb).map_zip(torch.lerp,weight=unsqueeze(self.lam, n=nx_dims-1)))
