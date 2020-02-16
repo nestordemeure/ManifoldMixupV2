@@ -8,6 +8,7 @@ from fastai.callback import *
 from fastai.basic_train import Learner, LearnerCallback
 from fastai.text.models import AWD_LSTM
 from fastai.vision.models import UnetBlock
+from fastai.tabular.models import TabularModel
 from fastai.callbacks.mixup import MixUpLoss
 
 __all__ = ["ManifoldMixupModule", "non_mixable_module_types", "ManifoldMixupCallback", "manifold_mixup", "OutputMixupCallback", "output_mixup"]
@@ -54,6 +55,11 @@ def _get_mixup_module_list(model, module_list=None):
     if len(user_wrapped_modules) != 0:
         print(f'Manifold mixup: ManifoldMixupModule modules detected, {len(user_wrapped_modules)} modules will be used for mixup.')
         return user_wrapped_modules
+    # checks for tabular model in which case we get only linear layers
+    if isinstance(model, TabularModel):
+        linear_modules = list(filter(lambda module: isinstance(module, nn.Linear), module_list))
+        print(f'Manifold mixup: TabularModel detected, {len(linear_modules)} modules will be used for mixup.')
+        return linear_modules
     # checks for UnetBlock to only instrument the decoder part of a U-Net
     # following the recommendations of: `Prostate Cancer Segmentation using Manifold Mixup U-Net`
     ublock_modules = list(filter(lambda module: isinstance(module, UnetBlock), module_list))
@@ -130,13 +136,14 @@ class ManifoldMixupCallback(LearnerCallback):
         # creates tensor filled with the random ponderation drawn from a beta distribution of parameter alpha
         lambd = np.random.beta(self.alpha, self.alpha, last_target.size(0))
         lambd = np.concatenate([lambd[:,None], 1-lambd[:,None]], 1).max(1)
-        self._lambd = torch.from_numpy(lambd).float().to(last_input.device)
+        self._lambd = torch.from_numpy(lambd).float().to(last_target.device)
         # decides on a way to shuffle inputs
-        self._shuffled_index = torch.randperm(last_target.size(0)).to(last_input.device)
+        self._shuffled_index = torch.randperm(last_target.size(0)).to(last_target.device)
         # selects a module to apply mixup
         minimum_module_index = -1 if self.use_input_mixup else 0
         k = np.random.randint(minimum_module_index, len(self.module_list))
         if k == -1: # applies mixup to an input
+            assert (not isinstance(last_input, list)), "Manifold mixup: Your input type does not seem compatible with input mixup, please set `use_input_mixup=False`."
             self._is_input_mixup = True
             input_lambd = _adapt_dim(self._lambd, last_input)
             last_input = last_input * input_lambd + last_input[self._shuffled_index] * (1 - input_lambd)
