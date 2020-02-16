@@ -11,7 +11,7 @@ If you notice any error of this kind, please report it. We should be able to fix
 
 ## Usage
 
-To use manifold mixup, you need to pass the corresponding callback to the `cbs` argument of your learner (for a minimal demonstration, see the [Demo notebook](https://github.com/nestordemeure/ManifoldMixup/blob/V2/Demo.ipynb)):
+To use manifold mixup, you need to pass the corresponding callback to the `cbs` argument of your learner (for a minimal demonstration, see the [Demo notebook](https://github.com/nestordemeure/ManifoldMixupV2/blob/master/Demo.ipynb)):
 
 ```python
 learner = Learner(data, model, cbs=ManifoldMixup())
