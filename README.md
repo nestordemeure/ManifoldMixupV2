@@ -29,7 +29,7 @@ The `ManifoldMixup` callback takes three parameters :
 
 The `OutputMixup` variant takes only the `alpha` parameters.
 
-## Dynamic mixup
+### Dynamic mixup
 
 Dynamic callbackss, which are available via `dynamic_mixup`, take two parameters instead of the single `alpha` parameter :
 - `alpha_max=0.8` the final, maximum, value for the parameter of the beta law used to sample the interpolation weight
