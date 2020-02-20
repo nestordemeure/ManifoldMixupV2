@@ -11,7 +11,7 @@ __all__ = ['CManifoldMixup', 'COutputMixup',
 
 class CManifoldMixup(ManifoldMixup):
     "Implements a scheduling policy on top of manifold mixup, letting you increase the difficulty progressively."
-    def __init__(self, alpha_max:float=0.4, scheduler=SchedCos, **kwargs):
+    def __init__(self, alpha_max:float=0.8, scheduler=SchedCos, **kwargs):
         """
         `alpha_max` is the parameter for the beta law, we recommend a value between 0. and 1.
         `scheduler` is the scheduling function (such as SchedLin, SchedCos, SchedNo, SchedExp or SchedPoly)
@@ -39,7 +39,7 @@ class CManifoldMixup(ManifoldMixup):
 
 class COutputMixup(OutputMixup):
     "Implements a scheduling policy on top of output mixup, letting you increase the difficulty progressively."
-    def __init__(self, alpha_max:float=0.4, scheduler=SchedCos, **kwargs):
+    def __init__(self, alpha_max:float=0.8, scheduler=SchedCos, **kwargs):
         """
         `alpha_max` is the parameter for the beta law, we recommend a value between 0. and 1.
         `scheduler` is the scheduling function (such as SchedLin, SchedCos, SchedNo, SchedExp or SchedPoly)
