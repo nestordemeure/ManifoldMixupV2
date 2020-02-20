@@ -6,10 +6,10 @@ from fastai2.basics import *
 from fastai2.callback.schedule import *
 from manifold_mixup import *
 
-__all__ = ['CManifoldMixup', 'COutputMixup',
+__all__ = ['DynamicManifoldMixup', 'DynamicOutputMixup',
            'SchedLin', 'SchedCos', 'SchedNo', 'SchedExp', 'SchedPoly', 'combine_scheds', 'combined_cos'] # reexport for conveniance
 
-class CManifoldMixup(ManifoldMixup):
+class DynamicManifoldMixup(ManifoldMixup):
     "Implements a scheduling policy on top of manifold mixup, letting you increase the difficulty progressively."
     def __init__(self, alpha_max:float=0.8, scheduler=SchedCos, **kwargs):
         """
@@ -37,7 +37,7 @@ class CManifoldMixup(ManifoldMixup):
         self.distrib = Beta(tensor(alpha), tensor(alpha))
         super().begin_batch()
 
-class COutputMixup(OutputMixup):
+class DynamicOutputMixup(OutputMixup):
     "Implements a scheduling policy on top of output mixup, letting you increase the difficulty progressively."
     def __init__(self, alpha_max:float=0.8, scheduler=SchedCos, **kwargs):
         """
