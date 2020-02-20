@@ -1,6 +1,7 @@
 "Short demo inspired by http://dev.fast.ai/callback.mixup"
 from fastai2.vision.all import *
 from manifold_mixup import *
+from curriculum_mixup import *
 
 # gets the data
 path = untar_data(URLs.MNIST_TINY)
@@ -38,5 +39,17 @@ learn.recorder.plot_loss()
 # output mixup
 model = simple_cnn()
 learn = Learner(databunch, model, metrics=accuracy, cbs=OutputMixup())
+learn.fit(8)
+learn.recorder.plot_loss()
+
+# curriculum manifold mixup
+model = simple_cnn()
+learn = Learner(databunch, model, metrics=accuracy, cbs=CManifoldMixup(alpha_max=1.))
+learn.fit(8)
+learn.recorder.plot_loss()
+
+# curriculum output mixup
+model = simple_cnn()
+learn = Learner(databunch, model, metrics=accuracy, cbs=COutputMixup(scheduler=SchedLin(0.,1.)))
 learn.fit(8)
 learn.recorder.plot_loss()
