@@ -1,5 +1,6 @@
 # Curriculum Mixup
 # Performs Manifold Mixup and Output Mixup with an increasing alpha to get a gradual increase in difficulty.
+# source: https://github.com/nestordemeure/ManifoldMixupV2/blob/master/dynamic_mixup.py
 
 from torch.distributions.beta import Beta
 from fastai2.basics import *
