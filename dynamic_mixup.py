@@ -12,7 +12,7 @@ __all__ = ['DynamicManifoldMixup', 'DynamicOutputMixup',
 
 class DynamicManifoldMixup(ManifoldMixup):
     "Implements a scheduling policy on top of manifold mixup, letting you increase the difficulty progressively."
-    def __init__(self, alpha_max:float=0.8, scheduler=SchedCos, **kwargs):
+    def __init__(self, alpha_max:float=0.6, scheduler=SchedCos, **kwargs):
         """
         `alpha_max` is the parameter for the beta law, we recommend a value between 0. and 1.
         `scheduler` is the scheduling function (such as SchedLin, SchedCos, SchedNo, SchedExp or SchedPoly)
@@ -30,6 +30,7 @@ class DynamicManifoldMixup(ManifoldMixup):
             print("Partially applied scheduler detected, ignoring alpha_max parameter.")
             self.scheduler = scheduler
         else:
+            print("Scheduler detected, growing alpha from 0. to", alpha_max)
             self.scheduler = scheduler(0., alpha_max)
 
     def begin_batch(self):
@@ -40,7 +41,7 @@ class DynamicManifoldMixup(ManifoldMixup):
 
 class DynamicOutputMixup(OutputMixup):
     "Implements a scheduling policy on top of output mixup, letting you increase the difficulty progressively."
-    def __init__(self, alpha_max:float=0.8, scheduler=SchedCos, **kwargs):
+    def __init__(self, alpha_max:float=0.6, scheduler=SchedCos, **kwargs):
         """
         `alpha_max` is the parameter for the beta law, we recommend a value between 0. and 1.
         `scheduler` is the scheduling function (such as SchedLin, SchedCos, SchedNo, SchedExp or SchedPoly)
@@ -58,6 +59,7 @@ class DynamicOutputMixup(OutputMixup):
             print("Partially applied scheduler detected, ignoring alpha_max parameter.")
             self.scheduler = scheduler
         else:
+            print("Scheduler detected, growing alpha from 0. to", alpha_max)
             self.scheduler = scheduler(0., alpha_max)
 
     def begin_batch(self):

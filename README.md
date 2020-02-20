@@ -13,9 +13,11 @@ If you notice any error of this kind, please report it. We should be able to fix
 
 ## Usage
 
+For a minimal demonstration of the various callbacks and their parameters, see the [Demo notebook](https://github.com/nestordemeure/ManifoldMixupV2/blob/master/Demo.ipynb).
+
 ### Mixup
 
-To use manifold mixup, you need to import `manifold_mixup` and pass the corresponding callback to the `cbs` argument of your learner (for a minimal demonstration, see the [Demo notebook](https://github.com/nestordemeure/ManifoldMixupV2/blob/master/Demo.ipynb)):
+To use manifold mixup, you need to import `manifold_mixup` and pass the corresponding callback to the `cbs` argument of your learner :
 
 ```python
 learner = Learner(data, model, cbs=ManifoldMixup())
@@ -32,7 +34,7 @@ The `OutputMixup` variant takes only the `alpha` parameters.
 ### Dynamic mixup
 
 Dynamic callbackss, which are available via `dynamic_mixup`, take two parameters instead of the single `alpha` parameter :
-- `alpha_max=0.8` the final, maximum, value for the parameter of the beta law used to sample the interpolation weight
+- `alpha_max=0.6` the final, maximum, value for the parameter of the beta law used to sample the interpolation weight
 - `scheduler=SchedCos` the scheduling function to describe the evolution of `alpha` from `0.` to `alpha_max`
 
 The default schedulers are `SchedLin`, `SchedCos`, `SchedNo`, `SchedExp` and `SchedPoly`.
