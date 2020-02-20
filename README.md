@@ -1,17 +1,21 @@
 # Manifold Mixup V2
 
-Unofficial implementation of [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf) (Proceedings of ICML 19) for [fast.ai V2](http://dev.fast.ai/) based on [Shivam Saboo](https://github.com/shivamsaboo17)'s [pytorch implementation](https://github.com/shivamsaboo17/ManifoldMixup) of manifold mixup, fastai's input mixup [implementation](https://dev.fast.ai/callback.mixup) plus some personnal improvements/variants.
+Unofficial implementation of [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf) (Proceedings of ICML 19) for [fast.ai V2](http://dev.fast.ai/) based on [Shivam Saboo](https://github.com/shivamsaboo17)'s [pytorch implementation](https://github.com/shivamsaboo17/ManifoldMixup) of manifold mixup, fastai's input mixup [implementation](https://dev.fast.ai/callback.mixup) plus some improvements/variants that I developped with [lessw2020](https://github.com/lessw2020).
 
-This package provides two additional callbacks to the fastai learner :
+This package provides four additional callbacks to the fastai learner :
 - `ManifoldMixup` which implements [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf)
 - `OutputMixup` which implements a variant that does the mixup only on the output of the last layer (this was shown to be more performant on a [benchmark](https://forums.fast.ai/t/mixup-data-augmentation/22764/72) and an independant [blogpost](https://medium.com/analytics-vidhya/better-result-with-mixup-at-final-layer-e9ba3a4a0c41))
+- `DynamicManifoldMixup` which lets you use manifold mixup with a schedule to increase difficulty progressively
+- `DynamicOutputMixup` which lets you use manifold mixup with a schedule to increase difficulty progressively
 
 **Warning:** As fastai V2 is still in its alpha stage, this code might become invalid due to internal changes.
 If you notice any error of this kind, please report it. We should be able to fix it within 24 hours.
 
 ## Usage
 
-To use manifold mixup, you need to pass the corresponding callback to the `cbs` argument of your learner (for a minimal demonstration, see the [Demo notebook](https://github.com/nestordemeure/ManifoldMixupV2/blob/master/Demo.ipynb)):
+### Mixup
+
+To use manifold mixup, you need to import `manifold_mixup` and pass the corresponding callback to the `cbs` argument of your learner (for a minimal demonstration, see the [Demo notebook](https://github.com/nestordemeure/ManifoldMixupV2/blob/master/Demo.ipynb)):
 
 ```python
 learner = Learner(data, model, cbs=ManifoldMixup())
@@ -19,11 +23,24 @@ learner.fit(8)
 ```
 
 The `ManifoldMixup` callback takes three parameters :
-- `alpha=0.4` parameter of the beta law used for sampling the interpolation weight
+- `alpha=0.4` parameter of the beta law used to sample the interpolation weight
 - `use_input_mixup=True` do you want to apply mixup to the inputs
 - `module_list=None` can be used to pass an explicit list of target modules
 
 The `OutputMixup` variant takes only the `alpha` parameters.
+
+## Dynamic mixup
+
+When using the *dynamic* variant of the callbacks, which are available via `dynamic_mixup`, the `alpha` parameter will grow from `0.` to `alpha_max` according to the `scheduler` function.
+
+Dynamic callbacks take two additional parameter instead of the single `alpha` parameter :
+- `alpha_max=0.8` the final, maximum, value for the parameter of the beta law used to sample the interpolation weight
+- `scheduler=SchedCos` the scheduling function to describe the evolution of `alpha` from `0.` to `alpha_max`
+
+The default schedulers are `SchedLin`, `SchedCos`, `SchedNo`, `SchedExp` and `SchedPoly`.
+Note that you can pass a raw scheduler (`scheduler=SchedCos`), that will go from `0.` to `alpha_max`, but also a partially applied scheduler to have full control over the minimum and maximum values (`scheduler=SchedCos(0.,0.8)`).
+
+See the [Annealing](http://dev.fast.ai/callback.schedule#Annealing) section of fastai2's documentation for a list of available schedulers, ways to combine them and provide your own.
 
 ## Notes
 
