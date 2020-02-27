@@ -33,14 +33,13 @@ The `OutputMixup` variant takes only the `alpha` parameters.
 
 ### Dynamic mixup
 
-Dynamic callbackss, which are available via `dynamic_mixup`, take two parameters instead of the single `alpha` parameter :
+Dynamic callbackss, which are available via `dynamic_mixup`, take three parameters instead of the single `alpha` parameter :
+- `alpha_min=0.0` the initial, minimum, value for the parameter of the beta law used to sample the interpolation weight (we recommend keeping it to 0)
 - `alpha_max=0.6` the final, maximum, value for the parameter of the beta law used to sample the interpolation weight
-- `scheduler=SchedCos` the scheduling function to describe the evolution of `alpha` from `0.` to `alpha_max`
+- `scheduler=SchedCos` the scheduling function to describe the evolution of `alpha` from `alpha_min` to `alpha_max`
 
 The default schedulers are `SchedLin`, `SchedCos`, `SchedNo`, `SchedExp` and `SchedPoly`.
-Note that you can pass a raw scheduler (`scheduler=SchedCos`), that will go from `0.` to `alpha_max` during the training, but also a partially applied scheduler to have full control over the minimum and maximum values (`scheduler=SchedCos(0.,0.8)`).
-
-See the [Annealing](http://dev.fast.ai/callback.schedule#Annealing) section of fastai2's documentation for a list of available schedulers, ways to combine them and provide your own.
+See the [Annealing](http://dev.fast.ai/callback.schedule#Annealing) section of fastai2's documentation for more informations on available schedulers, ways to combine them and provide your own.
 
 ## Notes
 

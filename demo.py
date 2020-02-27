@@ -50,6 +50,6 @@ learn.recorder.plot_loss()
 
 # curriculum output mixup
 model = simple_cnn()
-learn = Learner(databunch, model, metrics=accuracy, cbs=DynamicOutputMixup(scheduler=SchedLin(0.,1.)))
+learn = Learner(databunch, model, metrics=accuracy, cbs=DynamicOutputMixup(scheduler=SchedLin, alpha_max=0., alpha_min=1.))
 learn.fit(8)
 learn.recorder.plot_loss()
