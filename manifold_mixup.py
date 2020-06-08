@@ -9,6 +9,7 @@ from fastai2.callback.mixup import reduce_loss
 from fastai2.text.models import AWD_LSTM
 from fastai2.vision.models.unet import UnetBlock
 from fastai2.tabular.model import TabularModel
+from re import search
 
 __all__ = ['ManifoldMixupModule', 'ManifoldMixup', 'OutputMixup', 'non_mixable_module_types']
 
@@ -40,7 +41,7 @@ def _is_mixable(m):
 
 def _is_block_module(m):
     "Checks wether a module is a Block (typically a kind of resBlock)"
-    return "block" in str(type(m)).lower()
+    return bool(search(r"(?i)block|bottleneck", str(type(m))))
 
 def _get_mixup_module_list(model):
     "returns all the modules that can be used for mixup"
