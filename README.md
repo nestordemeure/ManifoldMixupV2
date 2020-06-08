@@ -48,7 +48,7 @@ See the [Annealing](http://dev.fast.ai/callback.schedule#Annealing) section of f
 `ManifoldMixup` tries to establish a sensible list of modules on which to apply mixup:
 - it uses a user provided `module_list` if possible
 - otherwise it uses only the modules wrapped with `ManifoldMixupModule`
-- if none are found, it defaults to modules with `Block` in their name (targetting mostly resblocks)
+- if none are found, it defaults to modules with `Block` or `Bottleneck` in their name (targetting mostly resblocks)
 - finaly, if needed, it defaults to all modules that are not included in the `non_mixable_module_types` list
 
 The `non_mixable_module_types` list contains mostly recurrent layers but you can add elements to it in order to define module classes that should not be used for mixup (*do not hesitate to create an issue or start a PR to add common modules to the default list*).
