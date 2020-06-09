@@ -140,7 +140,9 @@ class ManifoldMixup(Callback):
         "Interupt one run to use its intermediate results with a second model call."
         if not self.mixup_has_been_applied: # performs mixup
             output_dims = len(output.size())
+            if hasattr(self.learn, "mixed_precision"): output = output.float()
             output = torch.lerp(output[self.shuffle], output, weight=unsqueeze(self.lam, n=output_dims-1))
+            if hasattr(self.learn, "mixed_precision"): output = output.half()
             self.mixup_has_been_applied = True
             return output
         elif not self.warning_raised:
