@@ -1,15 +1,12 @@
 # Manifold Mixup V2
 
-Unofficial implementation of [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf) (Proceedings of ICML 19) for [fast.ai V2](http://dev.fast.ai/) based on [Shivam Saboo](https://github.com/shivamsaboo17)'s [pytorch implementation](https://github.com/shivamsaboo17/ManifoldMixup) of manifold mixup, fastai's input mixup [implementation](https://dev.fast.ai/callback.mixup) plus some improvements/variants that I developped with [lessw2020](https://github.com/lessw2020).
+Unofficial implementation of [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf) (Proceedings of ICML 19) for [fast.ai (V2)](https://docs.fast.ai/) based on [Shivam Saboo](https://github.com/shivamsaboo17)'s [pytorch implementation](https://github.com/shivamsaboo17/ManifoldMixup) of manifold mixup, fastai's input mixup [implementation](https://docs.fast.ai/callback.mixup) plus some improvements/variants that I developped with [lessw2020](https://github.com/lessw2020).
 
 This package provides four additional callbacks to the fastai learner :
 - `ManifoldMixup` which implements [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf)
 - `OutputMixup` which implements a variant that does the mixup only on the output of the last layer (this was shown to be more performant on a [benchmark](https://forums.fast.ai/t/mixup-data-augmentation/22764/72) and an independant [blogpost](https://medium.com/analytics-vidhya/better-result-with-mixup-at-final-layer-e9ba3a4a0c41))
 - `DynamicManifoldMixup` which lets you use manifold mixup with a schedule to increase difficulty progressively
 - `DynamicOutputMixup` which lets you use manifold mixup with a schedule to increase difficulty progressively
-
-**Warning:** As fastai V2 is still in its alpha stage, this code might become invalid due to internal changes.
-If you notice any error of this kind, please report it. We should be able to fix it within 24 hours.
 
 ## Usage
 
