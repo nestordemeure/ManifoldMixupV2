@@ -4,11 +4,11 @@
 # reference: http://proceedings.mlr.press/v97/verma19a/verma19a.pdf
 
 from torch.distributions.beta import Beta
-from fastai2.basics import *
-from fastai2.callback.mixup import reduce_loss
-from fastai2.text.models import AWD_LSTM
-from fastai2.vision.models.unet import UnetBlock
-from fastai2.tabular.model import TabularModel
+from fastai.basics import *
+from fastai.callback.mixup import reduce_loss
+from fastai.text.models import AWD_LSTM
+from fastai.vision.models.unet import UnetBlock
+from fastai.tabular.model import TabularModel
 
 __all__ = ['ManifoldMixupModule', 'ManifoldMixup', 'OutputMixup', 'non_mixable_module_types']
 
@@ -81,7 +81,7 @@ def _get_mixup_module_list(model):
 class ManifoldMixup(Callback):
     "Callback that mixes a random inner layer and the target."
     run_after,run_valid = [Normalize],False
-    def __init__(self, alpha:float=0.4, use_input_mixup:bool=True, module_list:Collection=None):
+    def __init__(self, alpha:float=0.4, use_input_mixup:bool=True, module_list=None):
         """
         `alpha` is the parameter for the beta law.
 

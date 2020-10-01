@@ -1,12 +1,14 @@
-"Short demo inspired by http://dev.fast.ai/callback.mixup"
-from fastai2.vision.all import *
+"Short demo inspired by https://docs.fast.ai/callback.mixup"
+from fastai.basics import *
+from fastai.vision.core import *
+from fastai.callback.mixup import MixUp
 from manifold_mixup import *
 from dynamic_mixup import *
 
 # gets the data
 path = untar_data(URLs.MNIST_TINY)
 items = get_image_files(path)
-datasets = Datasets(items, tfms=[PILImageBW.create, [parent_label, Categorize]], splits=GrandparentSplitter()(items))
+datasets = Datasets(items, [PILImageBW.create, [parent_label, Categorize()]], splits=GrandparentSplitter()(items))
 databunch = datasets.dataloaders(after_item=[ToTensor(), IntToFloatTensor()])
 
 # model definition

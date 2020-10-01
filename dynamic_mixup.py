@@ -3,8 +3,8 @@
 # source: https://github.com/nestordemeure/ManifoldMixupV2/blob/master/dynamic_mixup.py
 
 from torch.distributions.beta import Beta
-from fastai2.basics import *
-from fastai2.callback.schedule import *
+from fastai.basics import *
+from fastai.callback.schedule import *
 from manifold_mixup import *
 
 __all__ = ['DynamicManifoldMixup', 'DynamicOutputMixup']
