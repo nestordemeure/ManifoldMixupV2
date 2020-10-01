@@ -1,4 +1,4 @@
-# Manifold Mixup V2
+# Manifold Mixup
 
 Unofficial implementation of [ManifoldMixup](http://proceedings.mlr.press/v97/verma19a/verma19a.pdf) (Proceedings of ICML 19) for [fast.ai (V2)](https://docs.fast.ai/) based on [Shivam Saboo](https://github.com/shivamsaboo17)'s [pytorch implementation](https://github.com/shivamsaboo17/ManifoldMixup) of manifold mixup, fastai's input mixup [implementation](https://docs.fast.ai/callback.mixup) plus some improvements/variants that I developped with [lessw2020](https://github.com/lessw2020).
 
