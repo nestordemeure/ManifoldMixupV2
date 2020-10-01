@@ -2,6 +2,7 @@
 from fastai.basics import *
 from fastai.vision.core import *
 from fastai.callback.mixup import MixUp
+from fastai.callback.schedule import *
 from manifold_mixup import *
 from dynamic_mixup import *
 

@@ -29,13 +29,13 @@ class DynamicManifoldMixup(ManifoldMixup):
         self.alpha_max = alpha_max
         self.scheduler = scheduler
 
-    def begin_batch(self):
+    def before_batch(self):
         "Updates alpha as a function of the training percentage."
         # we do the partial application here (and not in the constructor) to avoid a pickle ambiguity error on learn.export
         # due to the fact that the partially applied function as the same name as the original function
         alpha = self.scheduler(self.alpha_min, self.alpha_max)(self.pct_train)
         self.distrib = Beta(tensor(alpha), tensor(alpha))
-        super().begin_batch()
+        super().before_batch()
 
 class DynamicOutputMixup(OutputMixup):
     "Implements a scheduling policy on top of output mixup, letting you increase the difficulty progressively."
@@ -57,7 +57,7 @@ class DynamicOutputMixup(OutputMixup):
         self.alpha_max = alpha_max
         self.scheduler = scheduler
 
-    def begin_batch(self):
+    def before_batch(self):
         "Updates alpha as a function of the training percentage."
         # we do the partial application here (and not in the constructor) to avoid a pickle ambiguity error on learn.export
         # due to the fact that the partially applied function as the same name as the original function

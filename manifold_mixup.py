@@ -99,7 +99,7 @@ class ManifoldMixup(Callback):
         self.module_list = module_list
         self.mixup_hook_handle = None
 
-    def begin_fit(self):
+    def before_fit(self):
         "replace the loss function with one that is adapted to mixup"
         self.warning_raised = False
         # lists the modules that can be used for mixup
@@ -111,7 +111,7 @@ class ManifoldMixup(Callback):
             self.old_lf = self.learn.loss_func
             self.learn.loss_func = self.lf
 
-    def begin_batch(self):
+    def before_batch(self):
         "mixes inputs and stores mixed output and lambda"
         self.shuffle = torch.randperm(self.y.size(0)).to(self.y.device)
         # lambda used for linear combinaison
@@ -185,7 +185,7 @@ class OutputMixup(Callback):
         alpha = float(alpha) # insures that alpha is a float as an int would crash Beta
         self.distrib = Beta(tensor(alpha), tensor(alpha))
 
-    def begin_fit(self):
+    def before_fit(self):
         "Injects the new loss function"
         if getattr(self.learn.loss_func, 'y_int', False):
             # classification type of output
